@@ -1,6 +1,6 @@
 import { synthesizeWithGemini } from '@/services/geminiTtsService';
 import { resolveGoogleApiKey, useUserSettingsStore } from '@/stores/user-settings-store';
-import { Audio } from 'expo-av';
+import { createAudioPlayer } from 'expo-audio';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -54,15 +54,18 @@ export function GeminiVoicePicker() {
           voiceName: voiceId,
         });
         if (!synth.ok) return;
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: synth.audioUri },
-          { shouldPlay: true },
-          (status) => {
-            if (status.isLoaded && status.didJustFinish) {
-              void sound.unloadAsync().catch(() => {});
+        const player = createAudioPlayer({ uri: synth.audioUri });
+        const sub = player.addListener('playbackStatusUpdate', (status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            sub.remove();
+            try {
+              player.remove();
+            } catch {
+              /* ignore */
             }
           }
-        );
+        });
+        player.play();
         // sonido se autodescarga al terminar; mientras tanto liberamos el spinner
         // tras un pequeño delay (no esperamos al fin de reproducción para que el
         // usuario pueda probar otra mientras suena la actual).

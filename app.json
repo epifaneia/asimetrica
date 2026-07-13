@@ -33,12 +33,6 @@
     "plugins": [
       "expo-router",
       [
-        "expo-av",
-        {
-          "microphonePermission": "Asimétrica usa el micrófono para grabar tu voz en la disertación."
-        }
-      ],
-      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
@@ -50,7 +44,13 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Asimétrica usa el micrófono para grabar tu voz en la disertación."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

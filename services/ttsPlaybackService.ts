@@ -1,5 +1,5 @@
-import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
-import type { AVPlaybackStatus } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import type { AudioPlayer, AudioStatus } from 'expo-audio';
 import * as Speech from 'expo-speech';
 
 import { resolveGoogleApiKey, useUserSettingsStore } from '@/stores/user-settings-store';
@@ -17,18 +17,16 @@ export type TtsEndReason = 'natural' | 'error' | 'stopped';
 
 const DEFAULT_VOICE = 'Kore';
 
-let activeSound: Audio.Sound | null = null;
+let activePlayer: AudioPlayer | null = null;
 let speechActive = false;
 
 async function setPlaybackAudioMode(): Promise<void> {
-  await Audio.setAudioModeAsync({
-    allowsRecordingIOS: false,
-    playsInSilentModeIOS: true,
-    staysActiveInBackground: false,
-    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-    shouldDuckAndroid: true,
-    interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
-    playThroughEarpieceAndroid: false,
+  await setAudioModeAsync({
+    allowsRecording: false,
+    playsInSilentMode: true,
+    shouldPlayInBackground: false,
+    interruptionMode: 'duckOthers',
+    shouldRouteThroughEarpiece: false,
   });
 }
 
@@ -41,14 +39,14 @@ export async function stopActiveTtsPlayback(): Promise<void> {
       /* ignore */
     }
   }
-  if (activeSound) {
+  if (activePlayer) {
     try {
-      await activeSound.stopAsync();
-      await activeSound.unloadAsync();
+      activePlayer.pause();
+      activePlayer.remove();
     } catch {
       /* ignore */
     }
-    activeSound = null;
+    activePlayer = null;
   }
 }
 
@@ -115,22 +113,22 @@ export async function playDissertationTts(
   await setPlaybackAudioMode();
 
   try {
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: synth.audioUri },
-      { shouldPlay: true },
-      (status: AVPlaybackStatus) => {
-        if (!status.isLoaded) {
-          if ('error' in status && status.error) finish('error');
-          return;
+    const player = createAudioPlayer({ uri: synth.audioUri });
+    activePlayer = player;
+    const sub = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
+      if (!status.isLoaded) return;
+      if (status.didJustFinish) {
+        sub.remove();
+        if (activePlayer === player) activePlayer = null;
+        try {
+          player.remove();
+        } catch {
+          /* ignore */
         }
-        if (status.didJustFinish) {
-          void sound.unloadAsync().catch(() => {});
-          if (activeSound === sound) activeSound = null;
-          finish('natural');
-        }
+        finish('natural');
       }
-    );
-    activeSound = sound;
+    });
+    player.play();
   } catch {
     finish('error');
   }

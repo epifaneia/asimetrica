@@ -7,9 +7,9 @@ import { GEMINI_MODELS } from './geminiModels';
 /**
  * TTS vía Gemini API (`gemini-3.1-flash-tts-preview` por defecto).
  *
- * El modelo devuelve **PCM crudo** (S16LE 24kHz mono) en base64. expo-av Sound no
- * acepta PCM crudo, así que envolvemos con cabecera WAV (44 bytes) y guardamos a
- * un archivo temporal en `cacheDirectory` que el reproductor consume directo.
+ * El modelo devuelve **PCM crudo** (S16LE 24kHz mono) en base64. El reproductor
+ * (expo-audio) no acepta PCM crudo, así que envolvemos con cabecera WAV (44 bytes)
+ * y guardamos a un archivo temporal en `cacheDirectory` que consume directo.
  *
  * Coste BYOK estimado: ~$0.02 por respuesta media. Latencia: 1-3s en buena red.
  */

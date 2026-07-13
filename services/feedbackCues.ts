@@ -1,4 +1,4 @@
-import { Audio } from 'expo-av';
+import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 
 /**
@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
  *   - playNegativeCue:  algo falló, mira la pantalla (descendente grave)
  *
  * Los WAV viven en assets/sounds (24 kHz mono, <0,5 s). Se precargan una vez
- * y se reproducen con replayAsync (sin re-crear el Sound en cada cue).
+ * (un AudioPlayer por cue) y se reproducen con seek(0)+play, sin re-crear nada.
  */
 
 type CueName = 'recording' | 'ack' | 'success' | 'error';
@@ -24,42 +24,40 @@ const CUE_ASSETS: Record<CueName, number> = {
   error: require('../assets/sounds/cue_error.wav'),
 };
 
-const loaded: Partial<Record<CueName, Audio.Sound>> = {};
-let preloading: Promise<void> | null = null;
+const loaded: Partial<Record<CueName, AudioPlayer>> = {};
+let preloaded = false;
 
-async function ensureLoaded(): Promise<void> {
-  if (preloading) return preloading;
-  preloading = (async () => {
-    for (const name of Object.keys(CUE_ASSETS) as CueName[]) {
-      try {
-        const { sound } = await Audio.Sound.createAsync(CUE_ASSETS[name], {
-          shouldPlay: false,
-          volume: 0.9,
-        });
-        loaded[name] = sound;
-      } catch {
-        /* sin asset no hay earcon; el háptico sigue funcionando */
-      }
+function ensureLoaded(): void {
+  if (preloaded) return;
+  preloaded = true;
+  for (const name of Object.keys(CUE_ASSETS) as CueName[]) {
+    try {
+      const player = createAudioPlayer(CUE_ASSETS[name]);
+      player.volume = 0.9;
+      loaded[name] = player;
+    } catch {
+      /* sin asset no hay earcon; el háptico sigue funcionando */
     }
-  })();
-  return preloading;
+  }
 }
 
 function playCue(name: CueName): void {
-  void (async () => {
-    try {
-      await ensureLoaded();
-      const sound = loaded[name];
-      if (sound) await sound.replayAsync();
-    } catch {
-      /* nunca romper el flujo por un cue */
+  try {
+    ensureLoaded();
+    const player = loaded[name];
+    if (player) {
+      // rebobinar por si ya sonó antes; play() arranca desde el inicio.
+      player.seekTo(0).catch(() => {});
+      player.play();
     }
-  })();
+  } catch {
+    /* nunca romper el flujo por un cue */
+  }
 }
 
 /** Precarga opcional al arrancar la app (evita latencia en el primer cue). */
 export function preloadFeedbackCues(): void {
-  void ensureLoaded();
+  ensureLoaded();
 }
 
 export function playRecordingCue(): void {
