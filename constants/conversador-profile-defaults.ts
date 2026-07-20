@@ -29,6 +29,19 @@ export const DEFAULT_CONVERSADOR_DOCK_ICON: Record<AiProfileId, string> = {
   destilador: 'diamond-outline',
 };
 
+/**
+ * Arte por defecto del dock: disco ámbar + glifo negro (mismo lenguaje que el
+ * FAB, generados a juego). Son PNG opacos SIN alfa → siempre renderizar con
+ * recorte circular (overflow hidden), o asoman las esquinas blancas.
+ * Un override de icono del usuario (Ionicons) sigue teniendo prioridad.
+ */
+export const DEFAULT_CONVERSADOR_DOCK_IMAGE: Record<AiProfileId, number> = {
+  creativo: require('../assets/images/profiles/creativo.png'),
+  auditor: require('../assets/images/profiles/auditor.png'),
+  sistemico: require('../assets/images/profiles/sistemico.png'),
+  destilador: require('../assets/images/profiles/destilador.png'),
+};
+
 /** Iconos Ionicons permitidos para el dock (evita nombres inválidos en runtime). */
 export const CONVERSADOR_ICON_OPTIONS = [
   'flash-outline',

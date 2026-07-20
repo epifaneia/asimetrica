@@ -42,3 +42,6 @@ app-example
 # generated native folders
 /ios
 /android
+
+# musica con derechos (solo build personal; en clon nuevo: anadir archivo o poner AMBIENT_LOOP_SOURCE=null)
+assets/sounds/ambient_loop.mp3

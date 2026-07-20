@@ -8,6 +8,14 @@ import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 
+/**
+ * Modo del pipeline de análisis:
+ *   - 'profundo': el original (STT + sanitiza en dos llamadas, Pro thinking HIGH, análisis largo).
+ *   - 'rapido': STT+sanitiza fusionados en UNA llamada, thinking MEDIUM y análisis acotado.
+ * Mismo pipeline conceptual; el modo solo mueve las palancas de latencia.
+ */
+export type PipelineMode = 'profundo' | 'rapido';
+
 type UserSettingsState = {
   /** API key de Google (Gemini Developer API). Misma palanca para todos los stages. */
   googleApiKey: string;
@@ -23,6 +31,15 @@ type UserSettingsState = {
   ttsEmergencyFallback: boolean;
   /** Al cerrar sesión de campo, exportar la disertación a Google Docs automáticamente. Default OFF. */
   autoExportOnClose: boolean;
+  /** Velocidad vs profundidad del análisis por turno. Default 'profundo' (comportamiento original). */
+  pipelineMode: PipelineMode;
+  /**
+   * Espera activa: mientras el analista piensa, el sistema recapitula lo que has
+   * dicho (perfil → anclas → bullets → colchón). Default ON.
+   * Para saltarlo SOLO en un turno no hace falta venir aquí: pulsa el botón del
+   * cable mientras habla. Este toggle es el apagado permanente.
+   */
+  recapEnabled: boolean;
   setGoogleApiKey: (key: string) => void;
   setGoogleOAuthClientId: (id: string) => void;
   clearGoogleOAuth: () => void;
@@ -31,6 +48,8 @@ type UserSettingsState = {
   setTtsVoiceId: (id: string) => void;
   setTtsEmergencyFallback: (on: boolean) => void;
   setAutoExportOnClose: (on: boolean) => void;
+  setPipelineMode: (mode: PipelineMode) => void;
+  setRecapEnabled: (on: boolean) => void;
 };
 
 /** BYOK Google: ajustes o `EXPO_PUBLIC_GOOGLE_API_KEY` (legacy: `EXPO_PUBLIC_GEMINI_API_KEY`). */
@@ -125,11 +144,15 @@ export const useUserSettingsStore = create<UserSettingsState>()(
       ttsVoiceId: '',
       ttsEmergencyFallback: true,
       autoExportOnClose: false,
+      pipelineMode: 'profundo',
+      recapEnabled: true,
       setGoogleApiKey: (key) => set({ googleApiKey: key }),
       setGoogleOAuthClientId: (id) => set({ googleOAuthClientId: id.trim() }),
       setTtsVoiceId: (id) => set({ ttsVoiceId: id.trim() }),
       setTtsEmergencyFallback: (on) => set({ ttsEmergencyFallback: on }),
       setAutoExportOnClose: (on) => set({ autoExportOnClose: on }),
+      setPipelineMode: (mode) => set({ pipelineMode: mode }),
+      setRecapEnabled: (on) => set({ recapEnabled: on }),
       clearGoogleOAuth: () =>
         set({
           googleAccessToken: '',
@@ -167,6 +190,8 @@ export const useUserSettingsStore = create<UserSettingsState>()(
         ttsVoiceId: s.ttsVoiceId,
         ttsEmergencyFallback: s.ttsEmergencyFallback,
         autoExportOnClose: s.autoExportOnClose,
+        pipelineMode: s.pipelineMode,
+        recapEnabled: s.recapEnabled,
       }),
       migrate: (persisted, version) => {
         if (!persisted || typeof persisted !== 'object') return persisted as UserSettingsState;

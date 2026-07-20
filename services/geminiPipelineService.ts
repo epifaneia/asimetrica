@@ -13,6 +13,10 @@ import { GEMINI_MODELS, GEMINI_THINKING } from './geminiModels';
  *   3 Interlocutor · Flash,    LOW      · convierte el análisis en monólogo hablado para TTS.
  *
  *   4 Corto (finale) · Pro,    MEDIUM   · latido final del perfil cuando el usuario cierra sesión.
+ *
+ * Modo rápido (`fastMode`, Ajustes): el stage 1 desaparece (la transcripción llega ya
+ * sanitizada en la misma llamada STT) y el stage 2 corre con thinking MEDIUM y salida
+ * acotada a 3072 tokens + instrucción de concisión. Stages 3-4 no cambian.
  */
 
 export type GeminiPipelineStage = 'sanitize' | 'analyze' | 'interlocutor';
@@ -30,6 +34,9 @@ const ANALYST_LAYER = `Arriba va tu identidad de perfil cognitivo. Tu salida en 
 Produce un análisis estructurado y profundo en español. Puedes usar markdown con encabezados y listas para organizar el pensamiento.
 Sé extenso donde aporte valor: matices, riesgos, supuestos, contraargumentos, implicaciones y tensiones abiertas.
 No escribas el monólogo hablado final para el usuario; no te dirijas en segunda persona como si fueras la voz de la app. Enfócate en el razonamiento analítico.`;
+
+/** Modo rápido: mismo rol, pero priorizando lo esencial — menos tokens = menos segundos. */
+const ANALYST_FAST_LAYER = `MODO RÁPIDO: sé conciso. Céntrate en las 2-3 ideas de mayor valor (el matiz clave, el riesgo principal, el contraargumento más fuerte) y omite lo secundario. Máxima densidad, mínima extensión.`;
 
 /** Inyectado al final del system del interlocutor (salida oral / TTS). */
 export const INTERLOCUTOR_TTS_FORMAT_RULE = `IMPORTANTE: Tu respuesta será leída por un motor de texto a voz (TTS). Debes responder usando exclusivamente prosa natural y fluida. ESTÁ TERMINANTEMENTE PROHIBIDO usar listas, viñetas (bullet points), emojis, asteriscos, palabras en negrita o caracteres especiales de Markdown. Usa puntos y comas para marcar las pausas respiratorias.`;
@@ -90,6 +97,12 @@ export type GeminiPipelineParams = {
   interlocutorSystemPrompt: string;
   /** Si true, añade `CORTO_CLOSING_LAYER` al system del interlocutor (último turno antes de cerrar). */
   closingMode?: boolean;
+  /**
+   * Modo rápido (Ajustes → pipelineMode 'rapido'): asume que `rawUserText` llega YA sanitizado
+   * (STT+sanitiza fusionados en la transcripción), y corre el analista con thinking MEDIUM
+   * y salida acotada. El modo profundo es el comportamiento original.
+   */
+  fastMode?: boolean;
   /** Notifica cada paso antes de su llamada HTTP. */
   onStage?: (stage: GeminiPipelineStage) => void;
   /** Tras sanitizar (STT listo): texto usuario ya usable en UI / historial. */
@@ -106,6 +119,7 @@ export async function runGeminiDissertationPipeline(
     profile,
     interlocutorSystemPrompt,
     closingMode = false,
+    fastMode = false,
     onStage,
     onSanitizedUser,
   } = params;
@@ -118,28 +132,37 @@ export async function runGeminiDissertationPipeline(
     return { ok: false, error: 'Falta Google API Key.', stage: 'sanitize' };
   }
 
-  // Stage 1 — sanitiza.
-  onStage?.('sanitize');
-  const s1 = await generateContent({
-    apiKey,
-    modelId: GEMINI_MODELS.sanitize,
-    systemInstruction: SANITIZER_SYSTEM,
-    contents: [{ role: 'user', parts: [{ text: raw }] }],
-    temperature: 0.2,
-    maxOutputTokens: 4096,
-    thinkingLevel: 'MINIMAL',
-    stage: 'sanitize',
-  });
-  if (!s1.ok) {
-    return { ok: false, error: s1.error, stage: 'sanitize' };
+  // Stage 1 — sanitiza. En modo rápido no hay llamada: la transcripción ya vino limpia
+  // (STT+sanitiza fusionados), así que el texto pasa directo.
+  let sanitizedUser: string;
+  if (fastMode) {
+    sanitizedUser = raw;
+    onSanitizedUser?.(sanitizedUser);
+  } else {
+    onStage?.('sanitize');
+    const s1 = await generateContent({
+      apiKey,
+      modelId: GEMINI_MODELS.sanitize,
+      systemInstruction: SANITIZER_SYSTEM,
+      contents: [{ role: 'user', parts: [{ text: raw }] }],
+      temperature: 0.2,
+      maxOutputTokens: 4096,
+      thinkingLevel: 'MINIMAL',
+      stage: 'sanitize',
+    });
+    if (!s1.ok) {
+      return { ok: false, error: s1.error, stage: 'sanitize' };
+    }
+    sanitizedUser = s1.text.trim() || raw;
+    onSanitizedUser?.(sanitizedUser);
   }
-  const sanitizedUser = s1.text.trim() || raw;
-  onSanitizedUser?.(sanitizedUser);
 
-  // Stage 2 — análisis cognitivo profundo (consumo interno).
+  // Stage 2 — análisis cognitivo (consumo interno). El modo mueve las palancas de latencia.
   onStage?.('analyze');
   const profileCore = getSystemPromptForProfile(profile);
-  const analystSystem = `${profileCore}\n\n${ANALYST_LAYER}`;
+  const analystSystem = fastMode
+    ? `${profileCore}\n\n${ANALYST_LAYER}\n\n${ANALYST_FAST_LAYER}`
+    : `${profileCore}\n\n${ANALYST_LAYER}`;
 
   const analystTail = collapseConsecutiveUsers([
     ...historyToGeminiContents(history),
@@ -155,9 +178,9 @@ export async function runGeminiDissertationPipeline(
     systemInstruction: analystSystem,
     contents: analystTail,
     temperature: 0.65,
-    maxOutputTokens: 8192,
-    thinkingLevel: GEMINI_THINKING.analyze,
-    stage: 'analyze',
+    maxOutputTokens: fastMode ? 3072 : 8192,
+    thinkingLevel: fastMode ? 'MEDIUM' : GEMINI_THINKING.analyze,
+    stage: fastMode ? 'analyze-fast' : 'analyze',
   });
   if (!s2.ok) {
     return { ok: false, error: s2.error, stage: 'analyze' };

@@ -10,6 +10,7 @@ import {
   CONVERSADOR_ICON_OPTIONS,
   DEFAULT_CONVERSADOR_DISPLAY_NAME,
   DEFAULT_CONVERSADOR_DOCK_ICON,
+  DEFAULT_CONVERSADOR_DOCK_IMAGE,
   getDefaultConversadorSystemPrompt,
 } from '@/constants/conversador-profile-defaults';
 
@@ -65,6 +66,24 @@ export function resolveConversadorDockIcon(
   const raw = state?.[profile]?.iconName?.trim();
   if (raw && isAllowedIcon(raw)) return raw;
   return DEFAULT_CONVERSADOR_DOCK_ICON[profile];
+}
+
+/** Qué pintar en el dock: arte PNG por defecto, o el Ionicons que eligió el usuario. */
+export type ConversadorDockVisual =
+  | { kind: 'image'; source: number }
+  | { kind: 'icon'; name: string };
+
+/**
+ * El arte a medida solo aplica mientras el usuario no haya personalizado el
+ * icono: su elección explícita (Ionicons) siempre gana sobre nuestro default.
+ */
+export function resolveConversadorDockVisual(
+  profile: AiProfileId,
+  state: ConversadorProfilesState | undefined
+): ConversadorDockVisual {
+  const raw = state?.[profile]?.iconName?.trim();
+  if (raw && isAllowedIcon(raw)) return { kind: 'icon', name: raw };
+  return { kind: 'image', source: DEFAULT_CONVERSADOR_DOCK_IMAGE[profile] };
 }
 
 export function resolveConversadorSystemPrompt(

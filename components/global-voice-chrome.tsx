@@ -4,7 +4,7 @@ import { useWiredMediaCambio } from '@/hooks/useWiredMediaCambio';
 import {
   AI_PROFILE_ORDER,
   resolveConversadorDisplayName,
-  resolveConversadorDockIcon,
+  resolveConversadorDockVisual,
   resolveConversadorSystemPrompt,
   type AiProfileId,
 } from '@/lib/conversador-profile';
@@ -21,13 +21,22 @@ import { transcribeAudioWithGemini } from '@/services/geminiTranscriptionService
 import { exportDissertationToGoogleDoc } from '@/services/googleDocsExport';
 import { getGoogleAccessTokenSilently } from '@/services/googleOAuthFlow';
 import { preservePendingAudio } from '@/services/pendingTurnsService';
+import {
+  disposeRecap,
+  isRecapSpeaking,
+  preemptRecap,
+  skipRecapSpeech,
+  startRecap,
+  stopRecapFlow,
+} from '@/services/recapPlaybackService';
 import { generateDissertationTitle } from '@/services/titleGenService';
 import { playDissertationTts, stopActiveTtsPlayback } from '@/services/ttsPlaybackService';
 import { useFoldersStore } from '@/stores/folders-store';
 import { usePendingTurnsStore } from '@/stores/pending-turns-store';
 import { resolveGoogleApiKey, useUserSettingsStore } from '@/stores/user-settings-store';
 import { useVoiceRouteStore } from '@/stores/voice-route-store';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -139,8 +148,9 @@ async function enqueueFailedTurn(
  *   - Con sesión activa: pantalla "blackout" con pulso constante + Cambio (mic/cable) + Corto.
  *     Nunca navega a `/document/[id]` durante el flujo. Solo persiste y vuelve a dashboard al cerrar.
  *
- * Fases dentro de la sesión: RECORDING → PROCESSING → PLAYING → (loop). Visualmente NO se
- * diferencian; solo los cues de audio (voz IA / silencio / chime) las comunican.
+ * Fases dentro de la sesión: RECORDING → PROCESSING → PLAYING → (loop). El icono del
+ * círculo las comunica (mic = hablas tú, cerebro = piensa, auricular = escuchas),
+ * además de los cues de audio (voz IA / silencio / chime).
  */
 export function GlobalVoiceChrome() {
   const insets = useSafeAreaInsets();
@@ -232,6 +242,9 @@ export function GlobalVoiceChrome() {
       kickOffAutoExport(docId);
     }
     usePendingTurnsStore.getState().clearSessionMark();
+    // Nada del hilo corto puede sobrevivir a la sesión: corta voz y colchón, y
+    // libera el reproductor del ambiente.
+    disposeRecap();
 
     setSession(null);
     setPhase('RECORDING');
@@ -249,6 +262,9 @@ export function GlobalVoiceChrome() {
 
   const autoRestartRecording = useCallback(async () => {
     if (!sessionRef.current) return;
+    // Defensivo: se abre el mic, así que nada del turno anterior puede seguir
+    // sonando (un turno KO sale por aquí sin pasar por la pisada de la respuesta).
+    stopRecapFlow();
     setPhase('RECORDING');
     const r = await startRecording();
     if (!r.ok) {
@@ -261,11 +277,29 @@ export function GlobalVoiceChrome() {
 
   const speakReplyOrSkip = useCallback(
     async (text: string, onNaturalEnd: () => void) => {
+      // Usuario pre-saltó la respuesta: cortar recap/colchón SIN bip de relevo
+      // (no viene voz después; el cue ✅ + el de mic ya cuentan la transición).
       if (skipTtsRef.current) {
+        preemptRecap();
         skipTtsRef.current = false;
         playPositiveCue();
         onNaturalEnd();
         return;
+      }
+      // La respuesta larga manda: si el recap sigue sonando, pisa y corta. Un bip
+      // corto avisa del relevo para que el corte no parezca un fallo, y una pausa
+      // mínima evita que el bip se solape con la primera palabra de la voz.
+      if (preemptRecap()) {
+        playAckCue();
+        await new Promise<void>((r) => setTimeout(r, 320));
+        // Una pulsación puede caer DENTRO de esa pausa: re-comprobar el pre-salto
+        // para no perderla (la ventana es pequeña, pero existe).
+        if (skipTtsRef.current) {
+          skipTtsRef.current = false;
+          playPositiveCue();
+          onNaturalEnd();
+          return;
+        }
       }
       setPhase('PLAYING');
       ttsManuallyStoppedRef.current = false;
@@ -293,7 +327,13 @@ export function GlobalVoiceChrome() {
       setPhase('PROCESSING');
       setBusyPhase('transcribing');
 
-      const tr = await transcribeAudioWithGemini({ apiKey: googleApiKey, fileUri: audioUri });
+      // Modo rápido: STT devuelve texto ya sanitizado y el pipeline salta el stage 1.
+      const fastMode = useUserSettingsStore.getState().pipelineMode === 'rapido';
+      const tr = await transcribeAudioWithGemini({
+        apiKey: googleApiKey,
+        fileUri: audioUri,
+        sanitize: fastMode,
+      });
       if (!tr.ok) {
         setBusyPhase(null);
         // El audio NO se pierde: a la bandeja de pendientes para reprocesar.
@@ -328,13 +368,21 @@ export function GlobalVoiceChrome() {
         profile,
         interlocutorSystemPrompt: interlocutorPrompt,
         closingMode,
+        fastMode,
         onStage: (stage) => setBusyPhase(stage),
-        onSanitizedUser: docId
-          ? (sanitized) => {
-              useFoldersStore.getState().appendDissertationUserMessage(docId!, sanitized);
-              appendedUserLine = true;
-            }
-          : undefined,
+        // Punto de bifurcación de los dos hilos: aquí ya hay texto del usuario y
+        // el analista (Pro, thinking HIGH) está a punto de arrancar. El recap sale
+        // AHORA, en paralelo, para ocupar ese tiempo muerto — nunca antes, o
+        // estaríamos alargando la espera en vez de taparla.
+        onSanitizedUser: (sanitized) => {
+          if (docId) {
+            useFoldersStore.getState().appendDissertationUserMessage(docId, sanitized);
+            appendedUserLine = true;
+          }
+          if (settings.recapEnabled && !closingMode) {
+            void startRecap({ apiKey: googleApiKey, text: sanitized, profile });
+          }
+        },
       });
 
       setBusyPhase(null);
@@ -467,7 +515,17 @@ export function GlobalVoiceChrome() {
     }
 
     if (ph === 'PROCESSING') {
-      // Pre-interrupción: la próxima TTS no se reproduce, pasa directo a tu turno.
+      // Con VOZ del recap sonando, la simple significa "cállate" — no "salta la
+      // respuesta". Es el gesto de la cultura de la app: cero pantallas, decisión
+      // tuya, cero heurísticas adivinando por ti. La voz para; el colchón sigue
+      // cubriendo la espera, porque lo que molesta es la charla, no el sonido.
+      if (isRecapSpeaking()) {
+        skipRecapSpeech();
+        playPositiveCue();
+        return;
+      }
+      // Solo colchón (o recap apagado): significado clásico. Pre-interrupción:
+      // la próxima TTS no se reproduce, pasa directo a tu turno.
       skipTtsRef.current = true;
       playPositiveCue();
       return;
@@ -523,6 +581,9 @@ export function GlobalVoiceChrome() {
 
     if (ph === 'PROCESSING') {
       // El turno en curso completa, su respuesta se persiste, su voz se silencia, salimos.
+      // Si el recap estaba sonando, callarlo ya: te vas, no tiene sentido seguir
+      // recapitulando. Corto conserva SIEMPRE su significado, también aquí.
+      stopRecapFlow();
       cortoQueuedRef.current = true;
       playPositiveCue();
       return;
@@ -580,10 +641,17 @@ export function GlobalVoiceChrome() {
             >
               <Animated.View style={[styles.bigMicRing, { opacity: pulseAnim }]}>
                 <View style={styles.bigMicInner}>
-                  <Ionicons name="mic" size={56} color={FAB_ICON} />
+                  {phase === 'PROCESSING' ? (
+                    <MaterialCommunityIcons name="brain" size={56} color={FAB_ICON} />
+                  ) : (
+                    <Ionicons
+                      name={phase === 'PLAYING' ? 'headset' : 'mic'}
+                      size={56}
+                      color={FAB_ICON}
+                    />
+                  )}
                 </View>
               </Animated.View>
-              <Text style={styles.cambioLabel}>CAMBIO</Text>
               <Text style={styles.recordingProfile}>{profileName}</Text>
               {isProcessing ? (
                 <Animated.Text style={[styles.processingDots, { opacity: processingDotsAnim }]}>
@@ -591,14 +659,25 @@ export function GlobalVoiceChrome() {
                 </Animated.Text>
               ) : null}
             </Pressable>
-            <Pressable
-              onPress={() => void onCorto()}
-              style={({ pressed }) => [styles.cortoBtn, pressed && styles.cortoBtnPressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Corto: cerrar conversación"
-            >
-              <Text style={styles.cortoBtnText}>Corto</Text>
-            </Pressable>
+            <View style={styles.actionsRow}>
+              <Pressable
+                onLongPress={() => void onCorto()}
+                delayLongPress={450}
+                style={({ pressed }) => [styles.cortoBtn, pressed && styles.cortoBtnPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Corto: mantener pulsado para cerrar la conversación"
+              >
+                <Text style={styles.cortoBtnText}>CORTO</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void onCambio()}
+                style={({ pressed }) => [styles.cambioBtn, pressed && styles.cambioBtnPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Cambio: fin de tu turno"
+              >
+                <Text style={styles.cambioBtnText}>CAMBIO</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </View>
@@ -609,7 +688,7 @@ export function GlobalVoiceChrome() {
   const profileDock = (dockStyle?: StyleProp<ViewStyle>) => (
     <View style={[styles.dockRow, dockStyle]} pointerEvents="box-none">
       {AI_PROFILE_ORDER.map((profile) => {
-        const icon = resolveConversadorDockIcon(profile, conversadorProfiles);
+        const visual = resolveConversadorDockVisual(profile, conversadorProfiles);
         const label = resolveConversadorDisplayName(profile, conversadorProfiles);
         return (
           <Pressable
@@ -619,12 +698,23 @@ export function GlobalVoiceChrome() {
             accessibilityLabel={`Iniciar conversación con perfil ${label}`}
             style={styles.fabHit}
           >
-            <View style={styles.fab}>
-              <Ionicons
-                name={icon as keyof typeof Ionicons.glyphMap}
-                size={ICON_SIZE}
-                color={FAB_ICON}
-              />
+            <View style={[styles.fab, visual.kind === 'image' && styles.fabImageClip]}>
+              {visual.kind === 'image' ? (
+                // El PNG es el FAB entero (disco ámbar + glifo). Sin alfa: el clip
+                // circular recorta las esquinas y el scale 1.03 esconde el fleco
+                // blanco del antialiasing bajo el borde.
+                <Image
+                  source={visual.source}
+                  style={[StyleSheet.absoluteFillObject, { transform: [{ scale: 1.03 }] }]}
+                  contentFit="cover"
+                />
+              ) : (
+                <Ionicons
+                  name={visual.name as keyof typeof Ionicons.glyphMap}
+                  size={ICON_SIZE}
+                  color={FAB_ICON}
+                />
+              )}
             </View>
           </Pressable>
         );
@@ -704,14 +794,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 10,
   },
-  cambioLabel: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: PAUSE_LABEL,
-    letterSpacing: 4,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
   recordingProfile: {
     fontSize: 13,
     color: TEXT_MUTED,
@@ -725,24 +807,49 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 6,
   },
+  actionsRow: {
+    marginTop: 44,
+    flexDirection: 'row',
+    gap: 18,
+  },
   cortoBtn: {
-    marginTop: 36,
-    paddingVertical: 10,
-    paddingHorizontal: 28,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
+    minWidth: 128,
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 26,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#3a3a3a',
     backgroundColor: '#121212',
   },
   cortoBtnPressed: {
     opacity: 0.85,
-    borderColor: '#444',
+    borderColor: '#555',
   },
   cortoBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
     color: PAUSE_LABEL,
-    letterSpacing: 1,
+    letterSpacing: 2,
+  },
+  cambioBtn: {
+    minWidth: 128,
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 26,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: AMBER_RING,
+    backgroundColor: ACCENT,
+  },
+  cambioBtnPressed: {
+    opacity: 0.85,
+  },
+  cambioBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: FAB_ICON,
+    letterSpacing: 2,
   },
   column: {
     paddingHorizontal: 14,
@@ -772,5 +879,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.45,
     shadowRadius: 6,
+  },
+  fabImageClip: {
+    overflow: 'hidden',
   },
 });

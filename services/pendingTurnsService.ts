@@ -45,7 +45,14 @@ async function processOne(apiKey: string, turn: PendingTurn): Promise<boolean> {
     return false;
   }
 
-  const tr = await transcribeAudioWithGemini({ apiKey, fileUri: turn.audioUri });
+  const settings = useUserSettingsStore.getState();
+  const fastMode = settings.pipelineMode === 'rapido';
+
+  const tr = await transcribeAudioWithGemini({
+    apiKey,
+    fileUri: turn.audioUri,
+    sanitize: fastMode,
+  });
   if (!tr.ok) return false;
 
   const folders = useFoldersStore.getState();
@@ -54,7 +61,6 @@ async function processOne(apiKey: string, turn: PendingTurn): Promise<boolean> {
     ? folders.dissertations.find((d) => d.id === docId)?.messages ?? []
     : [];
 
-  const settings = useUserSettingsStore.getState();
   const interlocutorPrompt = resolveConversadorSystemPrompt(
     turn.profile,
     settings.conversadorProfiles
@@ -67,6 +73,7 @@ async function processOne(apiKey: string, turn: PendingTurn): Promise<boolean> {
     profile: turn.profile,
     interlocutorSystemPrompt: interlocutorPrompt,
     closingMode: turn.closingMode,
+    fastMode,
   });
   if (!result.ok) return false;
 

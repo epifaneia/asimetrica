@@ -1,0 +1,179 @@
+import * as Speech from 'expo-speech';
+
+import { RECAP_PROFILE_LINES } from '@/constants/recap-profile-lines';
+import type { AiProfileId } from '@/lib/conversador-profile';
+
+import { startAmbientLoop, stopAmbientLoop, releaseAmbientLoop } from './ambientLoopService';
+import { generateRecap } from './recapService';
+
+/**
+ * ESPERA ACTIVA — hilo corto, en paralelo al largo.
+ *
+ * Al pulsar Cambio arrancan dos cosas a la vez: el pipeline de siempre
+ * (analista Pro + interlocutor + TTS) y este recap. El recap NO retrasa nada:
+ * ocupa tiempo muerto que ya se estaba perdiendo. Si bloqueara al analista
+ * habríamos alargado la espera en vez de taparla, que es justo lo contrario.
+ *
+ * Secuencia, ordenada por valor de aborto (lo más consecuente primero):
+ *   1. Enunciado determinista del perfil — instantáneo, 0 tokens.
+ *   2. Anclas — términos literales, verifican el STT.
+ *   3. Bullets — las ideas, te re-anclan tras un monólogo largo.
+ *   4. Colchón ambiente en bucle hasta que llegue la respuesta.
+ *
+ * Voz: `expo-speech` (TTS del sistema), no Gemini TTS. Es instantáneo, gratis y
+ * offline — y que suene DISTINTO a la voz real es una ventaja: distingues al
+ * instante "esto es la máquina confirmando" de "esto es la respuesta".
+ *
+ * POLÍTICA DE ENCUENTRO entre los dos hilos:
+ *   - El largo llega primero → `preemptRecap()`: pisa y corta. Es el protagonista.
+ *   - El corto acaba primero → colchón ambiente hasta que llegue el largo.
+ *   - Pulsación simple durante el recap → `skipRecapSpeech()`: calla la voz y
+ *     salta directo al colchón. La espera se sigue cubriendo.
+ */
+
+/**
+ * Token de generación. Cada cancelación lo incrementa, de modo que cualquier
+ * callback en vuelo de `Speech` se detecta obsoleto y se descarta. Evita que un
+ * `onDone` tardío reanude una secuencia ya cortada.
+ */
+let generation = 0;
+/** El flujo posee el canal de audio (hablando o con colchón puesto). */
+let active = false;
+/**
+ * Hay VOZ del recap sonando ahora mismo (no colchón). La distinción importa
+ * para el botón: con voz, la pulsación simple significa "cállate"; con solo
+ * colchón, recupera su significado clásico (saltar la respuesta que viene).
+ */
+let speaking = false;
+
+export function isRecapActive(): boolean {
+  return active;
+}
+
+export function isRecapSpeaking(): boolean {
+  return speaking;
+}
+
+/** Habla una lista de frases en orden. Resuelve al terminar o al ser cancelada. */
+function speakLines(lines: string[], gen: number): Promise<void> {
+  return new Promise((resolve) => {
+    const next = (i: number) => {
+      if (gen !== generation) return resolve();
+      if (i >= lines.length) return resolve();
+      const text = lines[i].trim();
+      if (!text) return next(i + 1);
+      try {
+        Speech.speak(text, {
+          language: 'es-ES',
+          rate: 1.0,
+          onDone: () => {
+            if (gen === generation) next(i + 1);
+            else resolve();
+          },
+          // Cancelada desde fuera (skip, pisada o fin de sesión).
+          onStopped: () => resolve(),
+          // Un fallo puntual del TTS del sistema no debe abortar el recap entero.
+          onError: () => {
+            if (gen === generation) next(i + 1);
+            else resolve();
+          },
+        });
+      } catch {
+        if (gen === generation) next(i + 1);
+        else resolve();
+      }
+    };
+    next(0);
+  });
+}
+
+/**
+ * Arranca el recap. Fire-and-forget: se llama en cuanto hay texto sanitizado,
+ * justo antes de que el analista empiece a pensar.
+ */
+export async function startRecap(params: {
+  apiKey: string;
+  text: string;
+  profile: AiProfileId;
+}): Promise<void> {
+  const gen = ++generation;
+  active = true;
+  speaking = true;
+
+  try {
+    // El enunciado del perfil suena YA, mientras el modelo genera anclas+bullets.
+    const recapPromise = generateRecap({ apiKey: params.apiKey, text: params.text });
+
+    await speakLines([RECAP_PROFILE_LINES[params.profile]], gen);
+    if (gen !== generation) return;
+
+    const recap = await recapPromise;
+    if (gen !== generation) return;
+
+    const lines: string[] = [];
+    if (recap.ok) {
+      if (recap.anchors.length) lines.push(`Anclas. ${recap.anchors.join('. ')}.`);
+      lines.push(...recap.bullets);
+    }
+
+    if (lines.length) {
+      await speakLines(lines, gen);
+      if (gen !== generation) return;
+    }
+
+    // Se acabó lo que había que decir: colchón hasta que llegue la respuesta.
+    speaking = false;
+    startAmbientLoop();
+  } catch {
+    // El recap es decorativo respecto al turno: si falla, el pipeline sigue.
+    if (gen === generation) {
+      speaking = false;
+      startAmbientLoop();
+    }
+  }
+}
+
+/**
+ * Pulsación simple durante el recap: calla la voz y salta al colchón.
+ * No apaga el ambiente — lo que molesta es la charla, y la espera sigue ahí.
+ */
+export function skipRecapSpeech(): void {
+  if (!active) return;
+  generation++;
+  speaking = false;
+  try {
+    Speech.stop();
+  } catch {
+    /* ignore */
+  }
+  startAmbientLoop();
+}
+
+/**
+ * La respuesta larga ya está lista: pisa y corta. Devuelve `true` si había algo
+ * sonando (para que el llamante emita el bip de aviso antes de hablar).
+ */
+export function preemptRecap(): boolean {
+  if (!active) return false;
+  stopRecapFlow();
+  return true;
+}
+
+/** Corta todo el flujo: voz, colchón y cualquier callback en vuelo. */
+export function stopRecapFlow(): void {
+  generation++;
+  active = false;
+  speaking = false;
+  try {
+    Speech.stop();
+  } catch {
+    /* ignore */
+  }
+  stopAmbientLoop();
+}
+
+/** Fin de sesión: además de cortar, libera el reproductor del colchón. */
+export function disposeRecap(): void {
+  stopRecapFlow();
+  releaseAmbientLoop();
+}

@@ -5,7 +5,7 @@ import { useVoiceRouteRegistration } from '@/hooks/useVoiceRouteRegistration';
 import {
   AI_PROFILE_ORDER,
   resolveConversadorDisplayName,
-  resolveConversadorDockIcon,
+  resolveConversadorDockVisual,
 } from '@/lib/conversador-profile';
 import { goBackOrHome } from '@/lib/navigation';
 import {
@@ -18,6 +18,7 @@ import { probeModel } from '@/services/geminiClient';
 import { GEMINI_MODELS } from '@/services/geminiModels';
 import { resolveGoogleApiKey, useUserSettingsStore } from '@/stores/user-settings-store';
 import * as Clipboard from 'expo-clipboard';
+import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -53,6 +54,10 @@ export default function SettingsScreen() {
   const setTtsEmergencyFallback = useUserSettingsStore((s) => s.setTtsEmergencyFallback);
   const autoExportOnClose = useUserSettingsStore((s) => s.autoExportOnClose);
   const setAutoExportOnClose = useUserSettingsStore((s) => s.setAutoExportOnClose);
+  const pipelineMode = useUserSettingsStore((s) => s.pipelineMode);
+  const setPipelineMode = useUserSettingsStore((s) => s.setPipelineMode);
+  const recapEnabled = useUserSettingsStore((s) => s.recapEnabled);
+  const setRecapEnabled = useUserSettingsStore((s) => s.setRecapEnabled);
 
   const [keyDraft, setKeyDraft] = useState(googleApiKey);
   const [googleIdDraft, setGoogleIdDraft] = useState(googleOAuthClientId);
@@ -200,6 +205,71 @@ export default function SettingsScreen() {
             <Ionicons name="options-outline" size={18} color={ACCENT} />
             <Text style={styles.sectionTitleInline}>Sesión de campo</Text>
           </View>
+          <Text style={styles.help}>
+            Modo del análisis por turno. Profundo es el original; Rápido fusiona transcripción y
+            limpieza en una llamada, baja el razonamiento del analista a MEDIUM y acota su
+            extensión — apunta a ~1 min por turno en vez de 3-5. Compáralos en paseo real; en
+            Diagnóstico ves las latencias de cada uno.
+          </Text>
+          <View style={styles.modeRow}>
+            <Pressable
+              style={[styles.modeCard, pipelineMode === 'profundo' && styles.modeCardActive]}
+              onPress={() => setPipelineMode('profundo')}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: pipelineMode === 'profundo' }}
+            >
+              <Ionicons
+                name="telescope-outline"
+                size={20}
+                color={pipelineMode === 'profundo' ? ACCENT : TEXT_MUTED}
+              />
+              <Text
+                style={[styles.modeCardTitle, pipelineMode === 'profundo' && styles.modeCardTitleActive]}
+              >
+                Profundo
+              </Text>
+              <Text style={styles.modeCardHint}>Análisis máximo, 3-5 min por turno</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modeCard, pipelineMode === 'rapido' && styles.modeCardActive]}
+              onPress={() => setPipelineMode('rapido')}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: pipelineMode === 'rapido' }}
+            >
+              <Ionicons
+                name="flash-outline"
+                size={20}
+                color={pipelineMode === 'rapido' ? ACCENT : TEXT_MUTED}
+              />
+              <Text
+                style={[styles.modeCardTitle, pipelineMode === 'rapido' && styles.modeCardTitleActive]}
+              >
+                Rápido
+              </Text>
+              <Text style={styles.modeCardHint}>Lo esencial, ~1 min por turno</Text>
+            </Pressable>
+          </View>
+          <Pressable
+            style={styles.toggleRow}
+            onPress={() => setRecapEnabled(!recapEnabled)}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: recapEnabled }}
+          >
+            <View style={styles.toggleTextWrap}>
+              <Text style={styles.toggleLabel}>Espera activa (recap)</Text>
+              <Text style={styles.help}>
+                Mientras el analista piensa, te confirma el perfil, te lee las palabras clave tal cual
+                las transcribió y resume en viñetas lo que acabas de decir. Para saltarlo{' '}
+                <Text style={styles.helpEmphasis}>solo en un turno</Text> no vengas aquí: pulsa el
+                botón del cable mientras habla. Esto es el apagado permanente.
+              </Text>
+            </View>
+            <Ionicons
+              name={recapEnabled ? 'checkbox' : 'square-outline'}
+              size={24}
+              color={recapEnabled ? ACCENT : TEXT_MUTED}
+            />
+          </Pressable>
           <Pressable
             style={styles.toggleRow}
             onPress={() => setTtsEmergencyFallback(!ttsEmergencyFallback)}
@@ -251,7 +321,7 @@ export default function SettingsScreen() {
           </Text>
           <View style={styles.profileEditGrid}>
             {AI_PROFILE_ORDER.map((p) => {
-              const icon = resolveConversadorDockIcon(p, conversadorProfiles);
+              const visual = resolveConversadorDockVisual(p, conversadorProfiles);
               const label = resolveConversadorDisplayName(p, conversadorProfiles);
               return (
                 <Pressable
@@ -262,11 +332,19 @@ export default function SettingsScreen() {
                   accessibilityLabel={`Editar conversador ${label}`}
                 >
                   <View style={styles.profileEditIconWrap}>
-                    <Ionicons
-                      name={icon as keyof typeof Ionicons.glyphMap}
-                      size={22}
-                      color={ACCENT}
-                    />
+                    {visual.kind === 'image' ? (
+                      <ExpoImage
+                        source={visual.source}
+                        style={styles.profileEditImage}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <Ionicons
+                        name={visual.name as keyof typeof Ionicons.glyphMap}
+                        size={22}
+                        color={ACCENT}
+                      />
+                    )}
                   </View>
                   <Text style={styles.profileEditName}>{label}</Text>
                   <Text style={styles.profileEditId}>{p}</Text>
@@ -495,6 +573,39 @@ const styles = StyleSheet.create({
     color: TEXT_PRIMARY,
     fontFamily: Platform.select({ android: 'monospace', default: 'Courier' }),
   },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 6,
+  },
+  modeCard: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    backgroundColor: INPUT_BG,
+  },
+  modeCardActive: {
+    borderColor: ACCENT,
+    backgroundColor: '#12100a',
+  },
+  modeCardTitle: {
+    marginTop: 8,
+    fontSize: 15,
+    fontWeight: '700',
+    color: TEXT_MUTED,
+  },
+  modeCardTitleActive: {
+    color: TEXT_PRIMARY,
+  },
+  modeCardHint: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 17,
+    color: TEXT_MUTED,
+  },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -534,6 +645,11 @@ const styles = StyleSheet.create({
   },
   profileEditIconWrap: {
     marginBottom: 8,
+  },
+  profileEditImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
   },
   profileEditName: {
     fontSize: 15,

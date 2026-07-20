@@ -4,7 +4,7 @@ import { DarkActionSheet, DarkCenterDialog } from '@/components/dark-sheets';
 import { FolderNameModal } from '@/components/folder-name-modal';
 import {
   compileFolderForNotebookLm,
-  exportFolderToGoogleDoc,
+  exportFolderAsIndividualDocs,
 } from '@/services/googleDocsExport';
 import { ensureGoogleAccessToken } from '@/services/googleOAuthFlow';
 import { processPendingTurns } from '@/services/pendingTurnsService';
@@ -118,6 +118,11 @@ export default function StudyDashboardScreen() {
   // --- Compilar TODA la biblioteca para NotebookLM (Drive-céntrico) ---
   const [compileAllConfirm, setCompileAllConfirm] = useState(false);
   const [compileAllBusy, setCompileAllBusy] = useState(false);
+
+  // --- Export por carpeta: un Doc por disertación; puede tardar → progreso visible ---
+  const [exportProgress, setExportProgress] = useState<{ done: number; total: number } | null>(
+    null
+  );
 
   const handleCompileAll = async () => {
     setCompileAllConfirm(false);
@@ -272,7 +277,7 @@ export default function StudyDashboardScreen() {
       },
       {
         key: 'export',
-        label: 'Exportar a Google Docs (formato lectura)',
+        label: 'Exportar a Google Docs (un Doc por conversación)',
         onPress: async () => {
           const folder = folderActionsFor;
           setFolderActionsFor(null);
@@ -292,19 +297,26 @@ export default function StudyDashboardScreen() {
               });
               return;
             }
-            const { webUrl } = await exportFolderToGoogleDoc({
+            setExportProgress({ done: 0, total: allDocs.length });
+            const { folderUrl, exported, failedTitles } = await exportFolderAsIndividualDocs({
               accessToken: token,
               folderName: folder.name,
               dissertations: allDocs,
+              onProgress: (done, total) => setExportProgress({ done, total }),
             });
-            await WebBrowser.openBrowserAsync(webUrl);
+            await WebBrowser.openBrowserAsync(folderUrl);
             setInfoModal({
-              title: 'Documento creado',
-              message: 'Se abrió en el navegador. Revisa Google Drive si no aparece.',
+              title: 'Exportación completada',
+              message:
+                failedTitles.length === 0
+                  ? `${exported} documento${exported === 1 ? '' : 's'} creado${exported === 1 ? '' : 's'} en una carpeta de tu Drive.`
+                  : `${exported} creados; fallaron ${failedTitles.length}: ${failedTitles.join(', ')}. Puedes reintentar cuando quieras.`,
             });
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
             setInfoModal({ title: 'Error al exportar', message: msg });
+          } finally {
+            setExportProgress(null);
           }
         },
       },
@@ -374,6 +386,15 @@ export default function StudyDashboardScreen() {
             <Ionicons name="cog-outline" size={26} color={TEXT_PRIMARY} />
           </Pressable>
         </View>
+
+        {exportProgress ? (
+          <View style={styles.pendingBanner}>
+            <ActivityIndicator size="small" color={ACCENT_AMBER} />
+            <Text style={styles.pendingBannerText}>
+              {`Exportando a Google Docs… ${exportProgress.done}/${exportProgress.total}`}
+            </Text>
+          </View>
+        ) : null}
 
         {pendingCount > 0 ? (
           <Pressable

@@ -34,6 +34,9 @@ export const GEMINI_MODELS = {
   sanitize: env('EXPO_PUBLIC_GEMINI_SANITIZE_MODEL') ?? 'gemini-3.1-flash-lite',
   analyze: env('EXPO_PUBLIC_GEMINI_ANALYZE_MODEL') ?? 'gemini-3.1-pro-preview',
   interlocutor: env('EXPO_PUBLIC_GEMINI_INTERLOCUTOR_MODEL') ?? 'gemini-3-flash-preview',
+  // Recap de espera activa: corre EN PARALELO al analista, así que manda la latencia.
+  // Flash Lite: llega en 1-3 s, que es lo único que importa aquí.
+  recap: env('EXPO_PUBLIC_GEMINI_RECAP_MODEL') ?? 'gemini-3.1-flash-lite',
   corto: env('EXPO_PUBLIC_GEMINI_CORTO_MODEL') ?? 'gemini-3.1-pro-preview',
   fusion: env('EXPO_PUBLIC_GEMINI_FUSION_MODEL') ?? 'gemini-3.1-pro-preview',
   tts: env('EXPO_PUBLIC_GEMINI_TTS_MODEL') ?? 'gemini-3.1-flash-tts-preview',

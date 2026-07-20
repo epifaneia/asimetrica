@@ -20,17 +20,11 @@ function dissertationToTextBlock(d: Dissertation): string {
   return blocks.join('');
 }
 
-function formatFolderExportBody(folderName: string, dissertations: Dissertation[]): string {
-  const header = `Asimétrica — ${folderName}\nExportado ${new Date().toISOString()}\n\n`;
-  const blocks: string[] = [header];
-  for (const d of dissertations) {
-    blocks.push(dissertationToTextBlock(d));
-    blocks.push('\n');
-  }
-  return blocks.join('');
-}
-
-async function driveCreateEmptyDoc(accessToken: string, title: string): Promise<string> {
+async function driveCreateEmptyDoc(
+  accessToken: string,
+  title: string,
+  parentFolderId?: string
+): Promise<string> {
   const res = await fetch(`${DRIVE_FILES}?fields=id`, {
     method: 'POST',
     headers: {
@@ -40,6 +34,7 @@ async function driveCreateEmptyDoc(accessToken: string, title: string): Promise<
     body: JSON.stringify({
       name: title.slice(0, 200),
       mimeType: 'application/vnd.google-apps.document',
+      ...(parentFolderId ? { parents: [parentFolderId] } : {}),
     }),
   });
   const data = (await res.json()) as { id?: string; error?: { message?: string } };
@@ -47,6 +42,26 @@ async function driveCreateEmptyDoc(accessToken: string, title: string): Promise<
     throw new Error(data.error?.message ?? `Drive: HTTP ${res.status}`);
   }
   if (!data.id) throw new Error('Drive no devolvió id del documento.');
+  return data.id;
+}
+
+async function driveCreateFolder(accessToken: string, name: string): Promise<string> {
+  const res = await fetch(`${DRIVE_FILES}?fields=id`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: name.slice(0, 200),
+      mimeType: 'application/vnd.google-apps.folder',
+    }),
+  });
+  const data = (await res.json()) as { id?: string; error?: { message?: string } };
+  if (!res.ok) {
+    throw new Error(data.error?.message ?? `Drive: HTTP ${res.status}`);
+  }
+  if (!data.id) throw new Error('Drive no devolvió id de la carpeta.');
   return data.id;
 }
 
@@ -72,19 +87,51 @@ async function docsInsertAll(accessToken: string, documentId: string, fullText: 
   }
 }
 
-export async function exportFolderToGoogleDoc(params: {
+/** Sello legible para el nombre de la carpeta en Drive: cada export es una carpeta distinta. */
+function exportStamp(): string {
+  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  return `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}, ${hh}:${mm}`;
+}
+
+/**
+ * Exporta una carpeta como carpeta de Drive con UN Google Doc por disertación
+ * (nada de concatenar todo en un solo documento). El nombre lleva fecha y hora:
+ * Drive permite carpetas homónimas y sin sello los re-exports serían gemelos
+ * indistinguibles. Secuencial a propósito: evita rate limits de Drive/Docs.
+ * Los fallos por doc no abortan el lote.
+ */
+export async function exportFolderAsIndividualDocs(params: {
   accessToken: string;
   folderName: string;
   dissertations: Dissertation[];
-}): Promise<{ docId: string; webUrl: string }> {
-  const { accessToken, folderName, dissertations } = params;
-  const title = `Asimétrica — ${folderName}`.slice(0, 200);
-  const body = formatFolderExportBody(folderName, dissertations);
-  const docId = await driveCreateEmptyDoc(accessToken, title);
-  await docsInsertAll(accessToken, docId, body);
+  onProgress?: (done: number, total: number) => void;
+}): Promise<{ folderUrl: string; exported: number; failedTitles: string[] }> {
+  const { accessToken, folderName, dissertations, onProgress } = params;
+  const driveFolderId = await driveCreateFolder(
+    accessToken,
+    `Asimétrica — ${folderName} · ${exportStamp()}`
+  );
+
+  let exported = 0;
+  const failedTitles: string[] = [];
+  for (const d of dissertations) {
+    try {
+      const docId = await driveCreateEmptyDoc(accessToken, d.title.slice(0, 200), driveFolderId);
+      await docsInsertAll(accessToken, docId, dissertationToTextBlock(d));
+      exported += 1;
+    } catch {
+      failedTitles.push(d.title);
+    }
+    onProgress?.(exported + failedTitles.length, dissertations.length);
+  }
+
   return {
-    docId,
-    webUrl: `https://docs.google.com/document/d/${docId}/edit`,
+    folderUrl: `https://drive.google.com/drive/folders/${driveFolderId}`,
+    exported,
+    failedTitles,
   };
 }
 
