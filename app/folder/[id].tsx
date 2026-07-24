@@ -24,6 +24,7 @@ import {
   type Dissertation,
   type Folder,
 } from '@/stores/folders-store';
+import { getActiveDocsForFolder, useLibraryStore } from '@/stores/library-store';
 import { resolveGoogleApiKey, useUserSettingsStore } from '@/stores/user-settings-store';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
@@ -107,6 +108,11 @@ export default function FolderDetailScreen() {
   const removeDissertation = useFoldersStore((s) => s.removeDissertation);
 
   const folder = useMemo(() => folders.find((f) => f.id === id), [folders, id]);
+  const libraryDocs = useLibraryStore((s) => s.docs);
+  const activeLibraryCount = useMemo(
+    () => getActiveDocsForFolder(libraryDocs, id).length,
+    [libraryDocs, id]
+  );
   const inFolder = useMemo(
     () => sortDissertations(dissertations.filter((d) => d.folderId === id)),
     [dissertations, id]
@@ -356,6 +362,30 @@ export default function FolderDetailScreen() {
           </View>
         ) : null}
 
+        {/* Estado de la jaula, siempre visible: que el casual no se pierda la
+            opción más potente, y que quede claro cuándo la IA va "a pelo". */}
+        <Pressable
+          onPress={() => router.push('/library')}
+          style={({ pressed }) => [styles.libraryRow, pressed && { opacity: 0.8 }]}
+          accessibilityRole="button"
+          accessibilityLabel={
+            activeLibraryCount > 0
+              ? `Biblioteca activa: ${activeLibraryCount} documentos en jaula`
+              : 'Sin biblioteca: la IA va a pelo. Tocar para activar.'
+          }
+        >
+          <Ionicons
+            name={activeLibraryCount > 0 ? 'library' : 'library-outline'}
+            size={14}
+            color={activeLibraryCount > 0 ? ACCENT_AMBER : TEXT_MUTED}
+          />
+          <Text style={[styles.libraryRowText, activeLibraryCount > 0 && styles.libraryRowTextActive]}>
+            {activeLibraryCount > 0
+              ? `En jaula: ${activeLibraryCount} documento${activeLibraryCount === 1 ? '' : 's'}`
+              : 'A pelo — sin biblioteca · activar'}
+          </Text>
+        </Pressable>
+
         <View style={[styles.listShell, { paddingBottom: listPaddingBottom }]}>
           <FlatList
             data={gridData}
@@ -555,7 +585,11 @@ export default function FolderDetailScreen() {
         primaryDestructive
         onSecondary={() => setDeleteFolder(null)}
         onPrimary={() => {
-          if (deleteFolder) removeFolderTree(deleteFolder.id);
+          if (deleteFolder) {
+            removeFolderTree(deleteFolder.id);
+            // La biblioteca no debe apuntar a carpetas muertas (contaría mal el "activo en N").
+            useLibraryStore.getState().detachFolderEverywhere(deleteFolder.id);
+          }
           setDeleteFolder(null);
         }}
         onRequestClose={() => setDeleteFolder(null)}
@@ -656,6 +690,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: TEXT_MUTED,
     fontStyle: 'italic',
+  },
+  libraryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    marginBottom: 2,
+  },
+  libraryRowText: {
+    fontSize: 12,
+    color: TEXT_MUTED,
+    letterSpacing: 0.2,
+  },
+  libraryRowTextActive: {
+    color: ACCENT_AMBER,
   },
   listShell: {
     flex: 1,

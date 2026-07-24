@@ -40,6 +40,8 @@ export const GEMINI_MODELS = {
   corto: env('EXPO_PUBLIC_GEMINI_CORTO_MODEL') ?? 'gemini-3.1-pro-preview',
   fusion: env('EXPO_PUBLIC_GEMINI_FUSION_MODEL') ?? 'gemini-3.1-pro-preview',
   tts: env('EXPO_PUBLIC_GEMINI_TTS_MODEL') ?? 'gemini-3.1-flash-tts-preview',
+  // Biblioteca de obra (jaula): embeddings para retrieval. GA estable desde 2025.
+  embedding: env('EXPO_PUBLIC_GEMINI_EMBEDDING_MODEL') ?? 'gemini-embedding-001',
 } as const;
 
 export const GEMINI_THINKING = {

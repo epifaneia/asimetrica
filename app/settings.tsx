@@ -309,6 +309,26 @@ export default function SettingsScreen() {
             />
           </Pressable>
 
+          <Pressable
+            style={({ pressed }) => [styles.toggleRow, styles.sectionSpaced, pressed && { opacity: 0.85 }]}
+            onPress={() => router.push('/library')}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir biblioteca de obra"
+          >
+            <View style={styles.toggleTextWrap}>
+              <View style={styles.sectionHeaderRow}>
+                <Ionicons name="library-outline" size={18} color={ACCENT} />
+                <Text style={styles.sectionTitleInline}>Biblioteca de obra</Text>
+              </View>
+              <Text style={styles.help}>
+                Sube tu obra, tus normas o tu manual: actúan como{' '}
+                <Text style={styles.helpEmphasis}>jaula</Text> (canon vinculante) en las carpetas
+                que elijas.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={TEXT_MUTED} />
+          </Pressable>
+
           <View style={[styles.sectionHeaderRow, styles.sectionSpaced]}>
             <Ionicons name="pencil-outline" size={18} color={ACCENT} />
             <Text style={styles.sectionTitleInline}>Editar perfil de conversador</Text>
