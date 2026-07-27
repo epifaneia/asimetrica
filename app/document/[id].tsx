@@ -1,14 +1,20 @@
-import { DarkActionSheet } from '@/components/dark-sheets';
+import { DarkActionSheet, DarkCenterDialog } from '@/components/dark-sheets';
 import { useGlobalVoiceChromeBottomInset } from '@/components/global-voice-chrome';
 import { useVoiceRouteRegistration } from '@/hooks/useVoiceRouteRegistration';
 import { goBackOrHome } from '@/lib/navigation';
+import {
+  buildPlainTranscript,
+  restructureDissertation,
+  shareAsTextFile,
+} from '@/services/shareExport';
 import { useFoldersStore, type Dissertation } from '@/stores/folders-store';
+import { resolveGoogleApiKey, useUserSettingsStore } from '@/stores/user-settings-store';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 /**
@@ -57,6 +63,9 @@ export default function DocumentScreen() {
 
   const [turnActionsFor, setTurnActionsFor] = useState<number | null>(null);
   const [copiedTick, setCopiedTick] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   const copyAll = async () => {
     if (!doc) return;
@@ -77,6 +86,53 @@ export default function DocumentScreen() {
         </SafeAreaView>
       </View>
     );
+  }
+
+  /**
+   * Compartir por la hoja del sistema. «Reestructurado» pasa la conversación por
+   * Flash y la organiza por temas: un volcado de turnos es una fuente mala para
+   * NotebookLM (oralidad, ida y vuelta), y esto lo convierte en documento. En las
+   * dos variantes la autoría queda explícita — nunca se funde lo tuyo con lo suyo.
+   */
+  const shareOptions = [
+    {
+      key: 'restructured',
+      label: 'Reestructurado por temas (recomendado)',
+      onPress: () => void doShare(true),
+    },
+    {
+      key: 'raw',
+      label: 'Tal cual, la conversación entera',
+      onPress: () => void doShare(false),
+    },
+  ];
+
+  async function doShare(restructure: boolean) {
+    if (!doc) return;
+    setShareOpen(false);
+    const apiKey = resolveGoogleApiKey(useUserSettingsStore.getState().googleApiKey);
+    if (restructure && !apiKey) {
+      setShareError('El reestructurado necesita tu clave de Google (Ajustes).');
+      return;
+    }
+    setShareBusy(true);
+    try {
+      let content: string;
+      if (restructure) {
+        const res = await restructureDissertation({ apiKey, doc });
+        if (!res.ok) {
+          setShareError(res.error);
+          return;
+        }
+        content = res.text;
+      } else {
+        content = buildPlainTranscript(doc);
+      }
+      const shared = await shareAsTextFile(doc.title, content);
+      if (!shared.ok) setShareError(shared.error);
+    } finally {
+      setShareBusy(false);
+    }
   }
 
   const turnOptions =
@@ -123,6 +179,19 @@ export default function DocumentScreen() {
               color={copiedTick ? ACCENT : 'rgba(255,255,255,0.45)'}
             />
           </Pressable>
+          <Pressable
+            onPress={() => setShareOpen(true)}
+            disabled={shareBusy}
+            style={styles.copyHit}
+            accessibilityRole="button"
+            accessibilityLabel="Compartir conversación"
+          >
+            {shareBusy ? (
+              <ActivityIndicator size="small" color={ACCENT} />
+            ) : (
+              <Ionicons name="share-outline" size={22} color="rgba(255,255,255,0.45)" />
+            )}
+          </Pressable>
         </View>
         <ScrollView
           style={styles.scroll}
@@ -151,6 +220,22 @@ export default function DocumentScreen() {
         title={`Turno de ${turnActionsFor !== null && doc.messages[turnActionsFor]?.role === 'user' ? 'usuario' : 'IA'}`}
         options={turnOptions}
         onClose={() => setTurnActionsFor(null)}
+      />
+
+      <DarkActionSheet
+        visible={shareOpen}
+        title="Compartir cómo"
+        options={shareOptions}
+        onClose={() => setShareOpen(false)}
+      />
+
+      <DarkCenterDialog
+        visible={shareError !== null}
+        title="Compartir"
+        message={shareError ?? ''}
+        primaryLabel="Entendido"
+        onPrimary={() => setShareError(null)}
+        onRequestClose={() => setShareError(null)}
       />
     </View>
   );

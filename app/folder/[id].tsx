@@ -13,6 +13,11 @@ import {
 } from '@/services/googleDocsExport';
 import { ensureGoogleAccessToken } from '@/services/googleOAuthFlow';
 import {
+  buildPlainTranscript,
+  restructureDissertation,
+  shareAsTextFile,
+} from '@/services/shareExport';
+import {
   AI_PROFILE_ORDER,
   resolveConversadorDisplayName,
 } from '@/lib/conversador-profile';
@@ -136,6 +141,7 @@ export default function FolderDetailScreen() {
   const [deleteFolder, setDeleteFolder] = useState<Folder | null>(null);
   const [infoModal, setInfoModal] = useState<{ title: string; message: string } | null>(null);
   const [mergeBase, setMergeBase] = useState<Dissertation | null>(null);
+  const [shareFor, setShareFor] = useState<Dissertation | null>(null);
   const [busy, setBusy] = useState(false);
 
   const listPaddingBottom = voiceChromeBottom + DOCK_BARRIER_GAP;
@@ -187,6 +193,14 @@ export default function FolderDetailScreen() {
         },
       },
       {
+        key: 'share',
+        label: 'Compartir…',
+        onPress: () => {
+          setShareFor(d);
+          setDocActionsFor(null);
+        },
+      },
+      {
         key: 'export_docs',
         label: 'Exportar a Google Docs',
         onPress: async () => {
@@ -219,6 +233,59 @@ export default function FolderDetailScreen() {
       },
     ];
   }, [docActionsFor]);
+
+  /**
+   * Compartir por la hoja del sistema (Drive, NotebookLM, WhatsApp, Gmail…).
+   * Dos variantes: la transcripción tal cual, o reestructurada por temas con una
+   * llamada rápida a Flash — que es MUCHO mejor fuente para NotebookLM, porque un
+   * volcado de turnos va lleno de oralidad. En las dos, la autoría queda
+   * explícita: nunca se funde lo que dijiste tú con lo que dijo la IA.
+   */
+  const shareMenuOptions = useMemo(() => {
+    if (!shareFor) return [];
+    const d = shareFor;
+    // La disertación no guarda con qué perfil se generó, así que la atribución de
+    // los turnos de la IA queda como «INTERLOCUTOR». Preferible eso a inventarse
+    // un perfil: lo que no puede pasar es confundir quién dijo qué.
+    const doShare = async (restructure: boolean) => {
+      setShareFor(null);
+      const apiKey = resolveGoogleApiKey(googleApiKeyStored);
+      if (restructure && !apiKey) {
+        setInfoModal({ title: 'API Key', message: 'El reestructurado necesita tu clave de Google (Ajustes).' });
+        return;
+      }
+      setBusy(true);
+      try {
+        let content: string;
+        if (restructure) {
+          const res = await restructureDissertation({ apiKey, doc: d });
+          if (!res.ok) {
+            setInfoModal({ title: 'Reestructurar', message: res.error });
+            return;
+          }
+          content = res.text;
+        } else {
+          content = buildPlainTranscript(d);
+        }
+        const shared = await shareAsTextFile(d.title, content);
+        if (!shared.ok) setInfoModal({ title: 'Compartir', message: shared.error });
+      } finally {
+        setBusy(false);
+      }
+    };
+    return [
+      {
+        key: 'restructured',
+        label: 'Reestructurado por temas (recomendado)',
+        onPress: () => void doShare(true),
+      },
+      {
+        key: 'raw',
+        label: 'Tal cual, la conversación entera',
+        onPress: () => void doShare(false),
+      },
+    ];
+  }, [shareFor, googleApiKeyStored]);
 
   const folderMenuOptions = useMemo(() => {
     if (!folderActionsFor) return [];
@@ -515,6 +582,13 @@ export default function FolderDetailScreen() {
         title="Continuar en…"
         options={profilePickerOptions}
         onClose={() => setProfilePickerFor(null)}
+      />
+
+      <DarkActionSheet
+        visible={shareFor !== null}
+        title="Compartir cómo"
+        options={shareMenuOptions}
+        onClose={() => setShareFor(null)}
       />
 
       <FolderNameModal
