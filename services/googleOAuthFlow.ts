@@ -23,7 +23,16 @@ export function getGoogleOAuthRedirectUri(): string {
   return makeRedirectUri({ path: 'google-auth' });
 }
 
-/** Cliente OAuth (tipo «Aplicación de escritorio» en GCP). Ajustes o EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID. */
+/**
+ * Cliente OAuth de tipo **Android** en GCP (paquete `app.asimetrica` + SHA-1 de
+ * la firma). Ajustes o EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID.
+ *
+ * NO sirve un cliente «Aplicación de escritorio» ni «web»: aquí redirigimos con
+ * esquema propio (`app.asimetrica:///google-auth`) y Google solo lo admite en
+ * clientes Android/iOS. Con uno de escritorio la autorización se rechaza con «no
+ * cumple la política de OAuth 2.0» (los de escritorio solo aceptan localhost, y
+ * el flujo OOB está retirado desde 2022).
+ */
 export function resolveGoogleOAuthClientId(stored: string): string {
   const t = stored.trim();
   if (t) return t;
@@ -76,7 +85,7 @@ export async function ensureGoogleAccessToken(): Promise<string | null> {
   if (!clientId) {
     Alert.alert(
       'Google Docs',
-      'Configura el ID de cliente OAuth en Ajustes (o EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID en .env). En Google Cloud: tipo «Aplicación de escritorio» y añade la URI de redirección que muestra Ajustes.'
+      'Configura el ID de cliente OAuth en Ajustes (o EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID en .env). En Google Cloud: cliente de tipo «Android», paquete app.asimetrica y la huella SHA-1 de tu firma. Los clientes de escritorio y web no valen con esquema propio.'
     );
     return null;
   }

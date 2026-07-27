@@ -378,11 +378,16 @@ export default function SettingsScreen() {
             No basta con escribir un correo: Google exige iniciar sesión y aceptar permisos (OAuth). Puedes usar
             un ID de cliente propio (BYOK) o definir{' '}
             <Text style={styles.mono}>EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID</Text> en{' '}
-            <Text style={styles.mono}>.env</Text>. En Google Cloud Console: APIs habilitadas Google Drive + Google
-            Docs, pantalla de consentimiento, y un ID de cliente OAuth. Para apps móviles con esquema custom usa
-            tipo <Text style={styles.helpEmphasis}>«Aplicación de escritorio»</Text> (acepta redirecciones
-            arbitrarias) o un cliente Android/iOS si haces dev build con SHA-1 / bundle ID. El tipo «Aplicación
-            web» rechaza esquemas no-https. Añade esta URI de redirección autorizada:
+            <Text style={styles.mono}>.env</Text>. En Google Cloud Console: APIs habilitadas Google Drive +
+            Google Docs, pantalla de consentimiento (añádete como usuario de prueba) y un ID de cliente OAuth de
+            tipo <Text style={styles.helpEmphasis}>Android</Text> — con el nombre de paquete{' '}
+            <Text style={styles.mono}>app.asimetrica</Text> y la huella SHA-1 de tu keystore de firma.
+          </Text>
+          <Text style={styles.help}>
+            Ojo: los tipos <Text style={styles.helpEmphasis}>«Aplicación de escritorio»</Text> y «Aplicación web»{' '}
+            <Text style={styles.helpEmphasis}>no valen</Text> aquí. Esta app redirige con esquema propio, y Google
+            solo lo admite en clientes Android/iOS; con uno de escritorio devuelve «no cumple la política de OAuth
+            2.0». Los de escritorio solo aceptan localhost, y el flujo OOB está retirado. Redirección que usa la app:
           </Text>
           <View style={styles.redirectRow}>
             <Text style={styles.redirectUri} selectable>
