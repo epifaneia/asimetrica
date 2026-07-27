@@ -85,6 +85,7 @@ export default function StudyDashboardScreen() {
 
   // --- Resiliencia de campo: bandeja de pendientes + recuperación de crash ---
   const pendingCount = usePendingTurnsStore((s) => s.pending.length);
+  const closingInFlight = usePendingTurnsStore((s) => s.closingInFlight);
   const [pendingBusy, setPendingBusy] = useState(false);
   const [recoveryMark, setRecoveryMark] = useState<ActiveSessionMark | null>(null);
 
@@ -396,7 +397,18 @@ export default function StudyDashboardScreen() {
           </View>
         ) : null}
 
-        {pendingCount > 0 ? (
+        {/* Corto salió del tirón: el último latido sigue generándose en background.
+            Sin este aviso, la conversación parecería haberse cerrado sin respuesta. */}
+        {closingInFlight > 0 ? (
+          <View style={styles.pendingBanner}>
+            <ActivityIndicator size="small" color={ACCENT_AMBER} />
+            <Text style={styles.pendingBannerText}>
+              Cerrando conversación… la última respuesta aterriza sola
+            </Text>
+          </View>
+        ) : null}
+
+        {pendingCount - closingInFlight > 0 ? (
           <Pressable
             style={({ pressed }) => [styles.pendingBanner, pressed && styles.pendingBannerPressed]}
             disabled={pendingBusy}
@@ -412,7 +424,7 @@ export default function StudyDashboardScreen() {
             <Text style={styles.pendingBannerText}>
               {pendingBusy
                 ? 'Reprocesando turnos pendientes…'
-                : `${pendingCount} turno${pendingCount === 1 ? '' : 's'} de voz sin procesar — tocar para recuperar`}
+                : `${pendingCount - closingInFlight} turno${pendingCount - closingInFlight === 1 ? '' : 's'} de voz sin procesar — tocar para recuperar`}
             </Text>
           </Pressable>
         ) : null}

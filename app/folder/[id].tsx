@@ -25,6 +25,7 @@ import {
   type Folder,
 } from '@/stores/folders-store';
 import { getActiveDocsForFolder, useLibraryStore } from '@/stores/library-store';
+import { usePendingTurnsStore } from '@/stores/pending-turns-store';
 import { resolveGoogleApiKey, useUserSettingsStore } from '@/stores/user-settings-store';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
@@ -108,6 +109,7 @@ export default function FolderDetailScreen() {
   const removeDissertation = useFoldersStore((s) => s.removeDissertation);
 
   const folder = useMemo(() => folders.find((f) => f.id === id), [folders, id]);
+  const closingInFlight = usePendingTurnsStore((s) => s.closingInFlight);
   const libraryDocs = useLibraryStore((s) => s.docs);
   const activeLibraryCount = useMemo(
     () => getActiveDocsForFolder(libraryDocs, id).length,
@@ -359,6 +361,17 @@ export default function FolderDetailScreen() {
           <View style={styles.busyRow}>
             <ActivityIndicator size="small" color={ACCENT_AMBER} />
             <Text style={styles.busyText}>Procesando…</Text>
+          </View>
+        ) : null}
+
+        {/* Corto sale del tirón y el último latido sigue en background: aquí es
+            donde aterrizas, así que aquí es donde tiene que decírtelo. */}
+        {closingInFlight > 0 ? (
+          <View style={styles.busyRow}>
+            <ActivityIndicator size="small" color={ACCENT_AMBER} />
+            <Text style={styles.busyText}>
+              Cerrando conversación… la última respuesta aterriza sola
+            </Text>
           </View>
         ) : null}
 

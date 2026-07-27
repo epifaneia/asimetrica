@@ -26,7 +26,7 @@ import { runGeminiDissertationPipeline } from '@/services/geminiPipelineService'
 import { transcribeAudioWithGemini } from '@/services/geminiTranscriptionService';
 import { exportDissertationToGoogleDoc } from '@/services/googleDocsExport';
 import { getGoogleAccessTokenSilently } from '@/services/googleOAuthFlow';
-import { preservePendingAudio } from '@/services/pendingTurnsService';
+import { preservePendingAudio, runClosingTurnDetached } from '@/services/pendingTurnsService';
 import {
   disposeRecap,
   isRecapSpeaking,
@@ -235,7 +235,12 @@ export function GlobalVoiceChrome() {
   // Helpers
   // ---------------------------------------------------------------------------
 
-  const endSession = useCallback(() => {
+  const endSession = useCallback(
+    (opts?: { deferFinalize?: boolean }) => {
+    // Idempotente: con Corto en PROCESSING salimos ya y el turno en vuelo llama
+    // aquí otra vez al terminar. Sin esta guarda, ese segundo cierre te arrancaría
+    // de donde estuvieras leyendo con un router.replace fantasma.
+    if (!sessionRef.current) return;
     // Resolver folder destino ANTES de limpiar sesión: el usuario aterriza donde vive su nueva conv,
     // no en dashboard, para no tener que buscarla.
     const docId = sessionRef.current?.docId ?? null;
@@ -244,8 +249,13 @@ export function GlobalVoiceChrome() {
       const doc = useFoldersStore.getState().dissertations.find((d) => d.id === docId);
       landingFolderId = doc?.folderId ?? null;
       // Title gen al cierre, fire-and-forget. Único punto centralizado.
-      if (googleApiKey) kickOffTitleGen(googleApiKey, docId);
-      kickOffAutoExport(docId);
+      // `deferFinalize`: el cierre por Corto corre en background y su último
+      // latido aún no está en el doc — título y auto-export los dispara el propio
+      // cierre al aterrizar, o el Drive se llevaría la conversación incompleta.
+      if (!opts?.deferFinalize) {
+        if (googleApiKey) kickOffTitleGen(googleApiKey, docId);
+        kickOffAutoExport(docId);
+      }
     }
     usePendingTurnsStore.getState().clearSessionMark();
     // Nada del hilo corto puede sobrevivir a la sesión: corta voz y colchón, y
@@ -264,7 +274,9 @@ export function GlobalVoiceChrome() {
     } else {
       router.replace('/');
     }
-  }, [googleApiKey]);
+    },
+    [googleApiKey]
+  );
 
   const autoRestartRecording = useCallback(async () => {
     if (!sessionRef.current) return;
@@ -588,9 +600,11 @@ export function GlobalVoiceChrome() {
     const ph = phaseRef.current;
 
     if (ph === 'RECORDING') {
-      // El usuario espera mientras la IA genera el latido final del perfil.
-      // El pipeline corre en closingMode (stage 3 con la capa de cierre) y persiste
-      // la respuesta en el doc, pero NO se reproduce voz: salida directa al folder.
+      // Corto sale DEL TIRÓN. El latido final del perfil (pipeline completo con
+      // Pro, ~40 s) corre en background y aterriza solo en la carpeta; antes se
+      // esperaba en pantalla negra y parecía que la app se había colgado justo en
+      // el gesto de irse. El turno se encola en la bandeja antes de arrancar, así
+      // que nada se pierde ni aunque muera la app.
       if (!isRecording) {
         playPositiveCue();
         endSession();
@@ -607,19 +621,32 @@ export function GlobalVoiceChrome() {
         endSession();
         return;
       }
-      await runTurnPipeline(stopped.uri, sess.profile, true);
+      const closingDocId = sess.docId;
+      const closingFolderId = closingDocId ? null : resolveTargetFolderId();
+      const keyForClosing = googleApiKey;
+      void runClosingTurnDetached({
+        apiKey: keyForClosing,
+        audioUri: stopped.uri,
+        profile: sess.profile,
+        docId: closingDocId,
+        folderId: closingFolderId,
+        onLanded: (docId) => {
+          kickOffTitleGen(keyForClosing, docId);
+          kickOffAutoExport(docId);
+        },
+      });
       playPositiveCue();
-      endSession();
+      endSession({ deferFinalize: true });
       return;
     }
 
     if (ph === 'PROCESSING') {
-      // El turno en curso completa, su respuesta se persiste, su voz se silencia, salimos.
-      // Si el recap estaba sonando, callarlo ya: te vas, no tiene sentido seguir
-      // recapitulando. Corto conserva SIEMPRE su significado, también aquí.
-      stopRecapFlow();
+      // También del tirón: el turno en vuelo termina y se persiste solo, pero su
+      // voz se silencia y tú sales YA. Antes había que esperar el pipeline entero
+      // en pantalla negra para poder irte.
       cortoQueuedRef.current = true;
       playPositiveCue();
+      endSession();
       return;
     }
 
@@ -631,13 +658,7 @@ export function GlobalVoiceChrome() {
       endSession();
       return;
     }
-  }, [
-    googleApiKey,
-    isRecording,
-    stopRecording,
-    runTurnPipeline,
-    endSession,
-  ]);
+  }, [googleApiKey, isRecording, stopRecording, endSession]);
 
   // Cable jack / botón media: pulsación simple = Cambio; doble = Corto.
   // Zero-UI completo: la sesión se cierra sin sacar el móvil del bolsillo.

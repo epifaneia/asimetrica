@@ -31,7 +31,11 @@ type UserSettingsState = {
   ttsEmergencyFallback: boolean;
   /** Al cerrar sesión de campo, exportar la disertación a Google Docs automáticamente. Default OFF. */
   autoExportOnClose: boolean;
-  /** Velocidad vs profundidad del análisis por turno. Default 'profundo' (comportamiento original). */
+  /**
+   * Velocidad vs profundidad del análisis por turno. Default 'rapido': en campo
+   * gana por goleada — con el recap y la cama cubriendo la espera, más cognición
+   * añade menos de lo que quita en latencia, precio y fricción.
+   */
   pipelineMode: PipelineMode;
   /**
    * Espera activa: mientras el analista piensa, el sistema recapitula lo que has
@@ -144,7 +148,7 @@ export const useUserSettingsStore = create<UserSettingsState>()(
       ttsVoiceId: '',
       ttsEmergencyFallback: true,
       autoExportOnClose: false,
-      pipelineMode: 'profundo',
+      pipelineMode: 'rapido',
       recapEnabled: true,
       setGoogleApiKey: (key) => set({ googleApiKey: key }),
       setGoogleOAuthClientId: (id) => set({ googleOAuthClientId: id.trim() }),

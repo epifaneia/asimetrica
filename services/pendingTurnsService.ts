@@ -37,12 +37,14 @@ async function deletePendingAudio(uri: string): Promise<void> {
 
 export type PendingProcessResult = { processed: number; failed: number };
 
-async function processOne(apiKey: string, turn: PendingTurn): Promise<boolean> {
+type ProcessOneResult = { ok: boolean; docId: string | null };
+
+async function processOne(apiKey: string, turn: PendingTurn): Promise<ProcessOneResult> {
   const info = await FileSystem.getInfoAsync(turn.audioUri).catch(() => null);
   if (!info?.exists) {
     // audio desaparecido (limpieza del SO): el pendiente ya no es recuperable
     usePendingTurnsStore.getState().removePending(turn.id);
-    return false;
+    return { ok: false, docId: null };
   }
 
   const settings = useUserSettingsStore.getState();
@@ -53,7 +55,7 @@ async function processOne(apiKey: string, turn: PendingTurn): Promise<boolean> {
     fileUri: turn.audioUri,
     sanitize: fastMode,
   });
-  if (!tr.ok) return false;
+  if (!tr.ok) return { ok: false, docId: null };
 
   const folders = useFoldersStore.getState();
   let docId = turn.docId;
@@ -75,7 +77,7 @@ async function processOne(apiKey: string, turn: PendingTurn): Promise<boolean> {
     closingMode: turn.closingMode,
     fastMode,
   });
-  if (!result.ok) return false;
+  if (!result.ok) return { ok: false, docId: null };
 
   if (docId) {
     folders.appendDissertationUserMessage(docId, result.sanitizedUser);
@@ -85,14 +87,14 @@ async function processOne(apiKey: string, turn: PendingTurn): Promise<boolean> {
       turn.folderId ??
       [...folders.folders].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]?.id ??
       null;
-    if (!folderId) return false;
+    if (!folderId) return { ok: false, docId: null };
     docId = folders.addDissertationWithAiExchange(folderId, result.sanitizedUser, result.finalReply);
-    if (!docId) return false;
+    if (!docId) return { ok: false, docId: null };
   }
 
   await deletePendingAudio(turn.audioUri);
   usePendingTurnsStore.getState().removePending(turn.id);
-  return true;
+  return { ok: true, docId };
 }
 
 /** Reprocesa toda la bandeja en orden de llegada. Secuencial: mismo doc, mismo orden. */
@@ -103,9 +105,57 @@ export async function processPendingTurns(apiKey: string): Promise<PendingProces
   let processed = 0;
   let failed = 0;
   for (const turn of turns) {
-    const ok = await processOne(apiKey, turn);
-    if (ok) processed++;
+    const res = await processOne(apiKey, turn);
+    if (res.ok) processed++;
     else failed++;
   }
   return { processed, failed };
+}
+
+/**
+ * «Corto» sin esperar: el último latido del perfil se genera en BACKGROUND y la
+ * sesión se cierra al instante.
+ *
+ * Antes, pulsar Corto dejaba la pantalla negra ~40 s (pipeline completo con Pro)
+ * antes de salir, y parecía que la app se había colgado justo en el gesto de
+ * irse. Ahora sales del tirón y la respuesta final aterriza sola en la carpeta.
+ *
+ * El turno se ENCOLA en la bandeja de pendientes ANTES de arrancar, con su audio
+ * ya en almacenamiento persistente. Así:
+ *   - si el pipeline falla → se queda en la bandeja para reintentar (nada se pierde),
+ *   - si la app MUERE a mitad → sigue en la bandeja al reabrir,
+ *   - si va bien → `processOne` lo saca de la bandeja y borra el audio.
+ */
+export async function runClosingTurnDetached(params: {
+  apiKey: string;
+  /** Audio recién grabado, todavía en cache. */
+  audioUri: string;
+  profile: PendingTurn['profile'];
+  docId: string | null;
+  folderId: string | null;
+  /** Se llama solo si el cierre aterrizó bien (para título y auto-export). */
+  onLanded?: (docId: string) => void;
+}): Promise<void> {
+  const store = usePendingTurnsStore.getState();
+
+  const preserved = await preservePendingAudio(params.audioUri);
+  if (!preserved) return; // sin sitio persistente no hay cierre recuperable
+
+  const id = store.addPending({
+    audioUri: preserved,
+    profile: params.profile,
+    docId: params.docId,
+    folderId: params.folderId,
+    closingMode: true,
+  });
+  const turn = usePendingTurnsStore.getState().pending.find((t) => t.id === id);
+  if (!turn) return;
+
+  store.beginClosingTurn();
+  try {
+    const res = await processOne(params.apiKey, turn);
+    if (res.ok && res.docId) params.onLanded?.(res.docId);
+  } finally {
+    usePendingTurnsStore.getState().endClosingTurn();
+  }
 }

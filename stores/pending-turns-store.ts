@@ -38,11 +38,20 @@ export type ActiveSessionMark = {
 type State = {
   pending: PendingTurn[];
   activeSession: ActiveSessionMark | null;
-  addPending: (turn: Omit<PendingTurn, 'id' | 'createdAt'>) => void;
+  /**
+   * Cierres de sesión («Corto») corriendo en background. NO se persiste: si la
+   * app muere a mitad, el turno sigue en `pending` (se encola ANTES de arrancar),
+   * así que el banner de pendientes lo recoge. Esto solo cambia el texto que se
+   * muestra mientras vuela.
+   */
+  closingInFlight: number;
+  addPending: (turn: Omit<PendingTurn, 'id' | 'createdAt'>) => string;
   removePending: (id: string) => void;
   markSessionActive: (mark: ActiveSessionMark) => void;
   updateSessionDocId: (docId: string) => void;
   clearSessionMark: () => void;
+  beginClosingTurn: () => void;
+  endClosingTurn: () => void;
 };
 
 function newId(): string {
@@ -54,18 +63,21 @@ export const usePendingTurnsStore = create<State>()(
     (set, get) => ({
       pending: [],
       activeSession: null,
-      addPending: (turn) =>
+      closingInFlight: 0,
+      addPending: (turn) => {
+        const id = newId();
         set({
-          pending: [
-            ...get().pending,
-            { ...turn, id: newId(), createdAt: new Date().toISOString() },
-          ],
-        }),
+          pending: [...get().pending, { ...turn, id, createdAt: new Date().toISOString() }],
+        });
+        return id;
+      },
       removePending: (id) => set({ pending: get().pending.filter((t) => t.id !== id) }),
       markSessionActive: (mark) => set({ activeSession: mark }),
       updateSessionDocId: (docId) =>
         set((s) => (s.activeSession ? { activeSession: { ...s.activeSession, docId } } : s)),
       clearSessionMark: () => set({ activeSession: null }),
+      beginClosingTurn: () => set({ closingInFlight: get().closingInFlight + 1 }),
+      endClosingTurn: () => set({ closingInFlight: Math.max(0, get().closingInFlight - 1) }),
     }),
     {
       name: 'asimetrica-pending-turns',
