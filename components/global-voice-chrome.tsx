@@ -186,6 +186,7 @@ export function GlobalVoiceChrome() {
   /** TTS detenido por el chrome (no por fin natural): no disparar cue ✅. */
   const ttsManuallyStoppedRef = useRef(false);
 
+
   const pulseAnim = useRef(new Animated.Value(0.45)).current;
   const processingDotsAnim = useRef(new Animated.Value(0)).current;
 
@@ -715,12 +716,16 @@ export function GlobalVoiceChrome() {
               ) : null}
             </Pressable>
             <View style={styles.actionsRow}>
+              {/* Un toque y cierra. El doble gesto existe SOLO en el cable, donde
+                  un único botón tiene que expresar dos órdenes; aquí CORTO ya es
+                  un botón propio y etiquetado. Antes solo respondía a un
+                  `onLongPress` de 450 ms: un toque normal no hacía nada ni daba
+                  pista, y parecía roto. */}
               <Pressable
-                onLongPress={() => void onCorto()}
-                delayLongPress={450}
+                onPress={() => void onCorto()}
                 style={({ pressed }) => [styles.cortoBtn, pressed && styles.cortoBtnPressed]}
                 accessibilityRole="button"
-                accessibilityLabel="Corto: mantener pulsado para cerrar la conversación"
+                accessibilityLabel="Corto: cerrar la conversación"
               >
                 <Text style={styles.cortoBtnText}>CORTO</Text>
               </Pressable>
