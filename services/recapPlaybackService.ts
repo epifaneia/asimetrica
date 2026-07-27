@@ -1,9 +1,13 @@
 import * as Speech from 'expo-speech';
 
+import {
+  AMBIENT_LEVEL_UNDER_VOICE,
+  AMBIENT_LEVEL_WAITING,
+} from '@/constants/ambient-asset';
 import { RECAP_PROFILE_LINES } from '@/constants/recap-profile-lines';
 import type { AiProfileId } from '@/lib/conversador-profile';
 
-import { startAmbientLoop, stopAmbientLoop, releaseAmbientLoop } from './ambientLoopService';
+import { releaseAmbientBed, setAmbientLevel } from './ambientLoopService';
 import { generateRecap } from './recapService';
 
 /**
@@ -26,9 +30,15 @@ import { generateRecap } from './recapService';
  *
  * POLÍTICA DE ENCUENTRO entre los dos hilos:
  *   - El largo llega primero → `preemptRecap()`: pisa y corta. Es el protagonista.
- *   - El corto acaba primero → colchón ambiente hasta que llegue el largo.
+ *     OJO: el chrome solo pisa cuando el AUDIO de la respuesta ya está listo, no
+ *     cuando el texto llega — la síntesis tarda ~12-15 s y antes se cortaba el
+ *     recap para dejar ese hueco en silencio.
+ *   - El corto acaba primero → la cama sube a nivel de espera hasta que llegue.
  *   - Pulsación simple durante el recap → `skipRecapSpeech()`: calla la voz y
- *     salta directo al colchón. La espera se sigue cubriendo.
+ *     deja la cama. La espera se sigue cubriendo.
+ *
+ * La cama de fondo NO se para en ningún momento de la sesión (la posee el
+ * chrome); aquí solo se mueve su nivel: bajo mientras hay voz, arriba al callar.
  */
 
 /**
@@ -101,6 +111,8 @@ export async function startRecap(params: {
   speaking = true;
 
   try {
+    // Cama a nivel de voz mientras el recap habla.
+    setAmbientLevel(AMBIENT_LEVEL_UNDER_VOICE);
     // El enunciado del perfil suena YA, mientras el modelo genera anclas+bullets.
     const recapPromise = generateRecap({ apiKey: params.apiKey, text: params.text });
 
@@ -110,10 +122,15 @@ export async function startRecap(params: {
     const recap = await recapPromise;
     if (gen !== generation) return;
 
+    // Anclas en su propia locución (son la verificación del STT, merecen su
+    // pausa), y los bullets FUNDIDOS en una sola: cada `Speech.speak` arranca y
+    // para el motor, así que una viñeta por locución metía un micro-corte entre
+    // cada idea y se oía a trompicones.
     const lines: string[] = [];
     if (recap.ok) {
       if (recap.anchors.length) lines.push(`Anclas. ${recap.anchors.join('. ')}.`);
-      lines.push(...recap.bullets);
+      const bullets = recap.bullets.map((b) => b.replace(/[.\s]+$/, '')).filter(Boolean);
+      if (bullets.length) lines.push(`${bullets.join('. ')}.`);
     }
 
     if (lines.length) {
@@ -121,14 +138,14 @@ export async function startRecap(params: {
       if (gen !== generation) return;
     }
 
-    // Se acabó lo que había que decir: colchón hasta que llegue la respuesta.
+    // Se acabó lo que había que decir: cama arriba hasta que llegue la respuesta.
     speaking = false;
-    startAmbientLoop();
+    setAmbientLevel(AMBIENT_LEVEL_WAITING);
   } catch {
     // El recap es decorativo respecto al turno: si falla, el pipeline sigue.
     if (gen === generation) {
       speaking = false;
-      startAmbientLoop();
+      setAmbientLevel(AMBIENT_LEVEL_WAITING);
     }
   }
 }
@@ -146,7 +163,7 @@ export function skipRecapSpeech(): void {
   } catch {
     /* ignore */
   }
-  startAmbientLoop();
+  setAmbientLevel(AMBIENT_LEVEL_WAITING);
 }
 
 /**
@@ -159,7 +176,11 @@ export function preemptRecap(): boolean {
   return true;
 }
 
-/** Corta todo el flujo: voz, colchón y cualquier callback en vuelo. */
+/**
+ * Corta la voz del recap y cualquier callback en vuelo. NO toca la cama: su
+ * nivel lo decide el chrome según la fase a la que se pase (mic a cero, voz de
+ * la respuesta a nivel bajo). Así no hay escalón en la transición.
+ */
 export function stopRecapFlow(): void {
   generation++;
   active = false;
@@ -169,11 +190,10 @@ export function stopRecapFlow(): void {
   } catch {
     /* ignore */
   }
-  stopAmbientLoop();
 }
 
-/** Fin de sesión: además de cortar, libera el reproductor del colchón. */
+/** Fin de sesión: además de cortar, libera el reproductor de la cama. */
 export function disposeRecap(): void {
   stopRecapFlow();
-  releaseAmbientLoop();
+  releaseAmbientBed();
 }

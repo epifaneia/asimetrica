@@ -13,5 +13,21 @@
  */
 export const AMBIENT_LOOP_SOURCE: number | null = require('../assets/sounds/ambient_loop.mp3');
 
-/** Volumen del colchón. Bajo a propósito: paseas por la calle, no te aísles del tráfico. */
-export const AMBIENT_LOOP_VOLUME = 0.32;
+/**
+ * Niveles del colchón. El reproductor NO se para nunca durante la sesión: solo
+ * sube y baja de volumen con rampas. Así no hay escalón — y los huecos de
+ * síntesis (que son de 10-20 s, medidos) dejan de parecer una avería y pasan a
+ * ser silencios musicales.
+ *
+ * Bajo a propósito en todos los casos: paseas por la calle, no te aísles del
+ * tráfico.
+ */
+/** Mientras grabas: a cero. El micro está abierto (la música se cuela en el STT)
+ *  y es tu momento de pensar; la ausencia de colchón dice "te toca". */
+export const AMBIENT_LEVEL_MIC = 0;
+/** Bajo la voz (recap o respuesta): cama de radio. */
+export const AMBIENT_LEVEL_UNDER_VOICE = 0.13;
+/** Esperando sin voz: el colchón es el único "estoy vivo". */
+export const AMBIENT_LEVEL_WAITING = 0.32;
+/** Duración de las rampas de volumen: un salto seco también hace escalón. */
+export const AMBIENT_RAMP_MS = 450;

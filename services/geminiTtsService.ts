@@ -21,6 +21,31 @@ const TTS_SAMPLE_RATE = 24000;
 const TTS_CHANNELS = 1;
 const TTS_BITS_PER_SAMPLE = 16;
 
+/**
+ * Generoso a propósito: la síntesis va a ~0,6-0,9x tiempo real (medido), así que
+ * un trozo de ~550 caracteres (≈37 s de audio) puede tardar ~30 s. Sin timeout,
+ * una petición colgada dejaba la sesión muda para siempre.
+ */
+const TTS_TIMEOUT_MS = 120_000;
+const TTS_RETRY_BACKOFF_MS = 1_200;
+
+/** HTTP definitivos: reintentar no arregla una key mala ni un modelo inexistente. */
+function isFatalHttp(status: number): boolean {
+  return status === 400 || status === 401 || status === 403 || status === 404;
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 export type TtsResult =
   | { ok: true; audioUri: string }
   | { ok: false; error: string };
@@ -80,29 +105,43 @@ export async function synthesizeWithGemini(params: {
     },
   };
 
+  // Timeout + un reintento ante error transitorio: con varios trozos en vuelo a
+  // la vez, un 429 puntual no debe tirar la respuesta a la voz del sistema.
   let pcmBase64 = '';
-  try {
-    const res = await fetch(TTS_ENDPOINT(modelId, apiKey), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = (await res.json()) as TtsResponse;
-    if (!res.ok) {
-      const msg = data.error?.message ?? `HTTP ${res.status}`;
-      log(false, msg);
-      return { ok: false, error: msg };
+  const payload = JSON.stringify(body);
+  let lastError = 'Error desconocido.';
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    if (attempt > 0) await sleep(TTS_RETRY_BACKOFF_MS);
+    try {
+      const res = await fetchWithTimeout(
+        TTS_ENDPOINT(modelId, apiKey),
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload },
+        TTS_TIMEOUT_MS
+      );
+      const data = (await res.json()) as TtsResponse;
+      if (!res.ok) {
+        lastError = data.error?.message ?? `HTTP ${res.status}`;
+        if (isFatalHttp(res.status)) {
+          log(false, lastError);
+          return { ok: false, error: lastError };
+        }
+        continue;
+      }
+      const inline = data.candidates?.[0]?.content?.parts?.find((p) => p.inlineData)?.inlineData;
+      if (!inline?.data) {
+        lastError = 'Respuesta sin audio.';
+        continue;
+      }
+      pcmBase64 = inline.data;
+      break;
+    } catch (e) {
+      const aborted = e instanceof Error && e.name === 'AbortError';
+      lastError = aborted ? `Timeout tras ${Math.round(TTS_TIMEOUT_MS / 1000)} s.` : e instanceof Error ? e.message : String(e);
     }
-    const inline = data.candidates?.[0]?.content?.parts?.find((p) => p.inlineData)?.inlineData;
-    if (!inline?.data) {
-      log(false, 'Respuesta sin audio.');
-      return { ok: false, error: 'Respuesta sin audio.' };
-    }
-    pcmBase64 = inline.data;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    log(false, msg);
-    return { ok: false, error: msg };
+  }
+  if (!pcmBase64) {
+    log(false, lastError);
+    return { ok: false, error: lastError };
   }
 
   // PCM crudo → WAV: prepend 44-byte header. Encoding base64 → bytes → header + bytes → base64.

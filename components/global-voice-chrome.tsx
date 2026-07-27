@@ -1,4 +1,10 @@
+import {
+  AMBIENT_LEVEL_MIC,
+  AMBIENT_LEVEL_UNDER_VOICE,
+  AMBIENT_LEVEL_WAITING,
+} from '@/constants/ambient-asset';
 import { DOCK_FAB_SIZE, DOCK_VERTICAL_PADDING } from '@/constants/dock-metrics';
+import { ensureAmbientBed, setAmbientLevel } from '@/services/ambientLoopService';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import { useWiredMediaCambio } from '@/hooks/useWiredMediaCambio';
 import {
@@ -265,6 +271,8 @@ export function GlobalVoiceChrome() {
     // Defensivo: se abre el mic, así que nada del turno anterior puede seguir
     // sonando (un turno KO sale por aquí sin pasar por la pisada de la respuesta).
     stopRecapFlow();
+    // Cama a cero mientras grabas: el micro está abierto y es tu turno de pensar.
+    setAmbientLevel(AMBIENT_LEVEL_MIC);
     setPhase('RECORDING');
     const r = await startRecording();
     if (!r.ok) {
@@ -277,8 +285,9 @@ export function GlobalVoiceChrome() {
 
   const speakReplyOrSkip = useCallback(
     async (text: string, onNaturalEnd: () => void) => {
-      // Usuario pre-saltó la respuesta: cortar recap/colchón SIN bip de relevo
-      // (no viene voz después; el cue ✅ + el de mic ya cuentan la transición).
+      // Usuario pre-saltó la respuesta antes de que llegara: cortar recap y cama
+      // SIN bip de relevo (no viene voz después; el cue ✅ + el de mic ya cuentan
+      // la transición).
       if (skipTtsRef.current) {
         preemptRecap();
         skipTtsRef.current = false;
@@ -286,34 +295,51 @@ export function GlobalVoiceChrome() {
         onNaturalEnd();
         return;
       }
-      // La respuesta larga manda: si el recap sigue sonando, pisa y corta. Un bip
-      // corto avisa del relevo para que el corte no parezca un fallo, y una pausa
-      // mínima evita que el bip se solape con la primera palabra de la voz.
-      if (preemptRecap()) {
-        playAckCue();
-        await new Promise<void>((r) => setTimeout(r, 320));
-        // Una pulsación puede caer DENTRO de esa pausa: re-comprobar el pre-salto
-        // para no perderla (la ventana es pequeña, pero existe).
-        if (skipTtsRef.current) {
-          skipTtsRef.current = false;
-          playPositiveCue();
-          onNaturalEnd();
-          return;
-        }
-      }
-      setPhase('PLAYING');
+
       ttsManuallyStoppedRef.current = false;
-      await playDissertationTts(text, (reason) => {
-        const wasManual = ttsManuallyStoppedRef.current;
-        ttsManuallyStoppedRef.current = false;
-        if (wasManual) return;
-        if (reason === 'error') {
-          playNegativeCue();
-        } else {
-          playPositiveCue();
+      await playDissertationTts(
+        text,
+        (reason) => {
+          const wasManual = ttsManuallyStoppedRef.current;
+          ttsManuallyStoppedRef.current = false;
+          if (wasManual) return;
+          if (reason === 'error') {
+            playNegativeCue();
+          } else {
+            playPositiveCue();
+          }
+          onNaturalEnd();
+        },
+        {
+          /**
+           * PISADA TARDÍA. Este callback salta cuando el AUDIO ya está listo, no
+           * cuando llega el texto. Antes se cortaba el recap y sonaba el bip al
+           * recibir el texto, y luego venían ~12-15 s de silencio esperando la
+           * síntesis (medido). Ahora el recap o la cama cubren esa espera y el
+           * bip es honesto: suena y habla.
+           */
+          onSpeechAboutToStart: async () => {
+            // Pulsación durante la síntesis: no reproducir nada.
+            if (skipTtsRef.current) {
+              skipTtsRef.current = false;
+              stopRecapFlow();
+              return false;
+            }
+            preemptRecap();
+            setPhase('PLAYING');
+            playAckCue();
+            // La cama no se para: solo baja a nivel de voz.
+            setAmbientLevel(AMBIENT_LEVEL_UNDER_VOICE);
+            // Que el bip no se solape con la primera palabra.
+            await new Promise<void>((r) => setTimeout(r, 320));
+            if (skipTtsRef.current) {
+              skipTtsRef.current = false;
+              return false;
+            }
+            return true;
+          },
         }
-        onNaturalEnd();
-      });
+      );
     },
     []
   );
@@ -326,6 +352,10 @@ export function GlobalVoiceChrome() {
     ): Promise<{ ok: true; finalReply: string } | { ok: false }> => {
       setPhase('PROCESSING');
       setBusyPhase('transcribing');
+      // Cama arriba en cuanto callas: cubre el hueco del STT (antes silencio puro
+      // tras el bip de recibido) y toda la espera si el recap está apagado o es
+      // el turno de Corto. Si el recap habla, él la baja a nivel de voz.
+      setAmbientLevel(AMBIENT_LEVEL_WAITING);
 
       // Modo rápido: STT devuelve texto ya sanitizado y el pipeline salta el stage 1.
       const fastMode = useUserSettingsStore.getState().pipelineMode === 'rapido';
@@ -459,6 +489,10 @@ export function GlobalVoiceChrome() {
       const t = useVoiceRouteStore.getState().target;
       const initialDocId = t?.kind === 'document' ? t.documentId : null;
       setSession({ profile, docId: initialDocId });
+      // La cama arranca con la sesión y no se para hasta cerrarla: solo cambia de
+      // nivel. Empieza a cero porque lo primero es grabar.
+      ensureAmbientBed();
+      setAmbientLevel(AMBIENT_LEVEL_MIC, 0);
       setPhase('RECORDING');
       const r = await startRecording();
       if (!r.ok) {
