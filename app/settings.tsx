@@ -206,10 +206,10 @@ export default function SettingsScreen() {
             <Text style={styles.sectionTitleInline}>Sesión de campo</Text>
           </View>
           <Text style={styles.help}>
-            Modo del análisis por turno. Profundo es el original; Rápido fusiona transcripción y
-            limpieza en una llamada, baja el razonamiento del analista a MEDIUM y acota su
-            extensión — apunta a ~1 min por turno en vez de 3-5. Compáralos en paseo real; en
-            Diagnóstico ves las latencias de cada uno.
+            El modo cambia <Text style={styles.helpEmphasis}>cuánto piensa</Text>, nunca cuánto
+            dice: en los dos, el análisis va sin recortes y no se pierde ninguna idea. Ágil fusiona
+            transcripción y limpieza en una llamada y razona a nivel medio; Profundo razona al
+            máximo y tarda bastante más. En Diagnóstico ves las latencias reales de cada uno.
           </Text>
           <View style={styles.modeRow}>
             <Pressable
@@ -228,7 +228,7 @@ export default function SettingsScreen() {
               >
                 Profundo
               </Text>
-              <Text style={styles.modeCardHint}>Análisis máximo, 3-5 min por turno</Text>
+              <Text style={styles.modeCardHint}>Razona al máximo · 3-5 min por turno</Text>
             </Pressable>
             <Pressable
               style={[styles.modeCard, pipelineMode === 'rapido' && styles.modeCardActive]}
@@ -244,9 +244,9 @@ export default function SettingsScreen() {
               <Text
                 style={[styles.modeCardTitle, pipelineMode === 'rapido' && styles.modeCardTitleActive]}
               >
-                Rápido
+                Ágil
               </Text>
-              <Text style={styles.modeCardHint}>Lo esencial, ~1 min por turno</Text>
+              <Text style={styles.modeCardHint}>Mismas ideas · razona a nivel medio</Text>
             </Pressable>
           </View>
           <Pressable

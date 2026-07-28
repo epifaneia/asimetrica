@@ -14,9 +14,10 @@ import { GEMINI_MODELS, GEMINI_THINKING } from './geminiModels';
  *
  *   4 Corto (finale) · Pro,    MEDIUM   · latido final del perfil cuando el usuario cierra sesión.
  *
- * Modo rápido (`fastMode`, Ajustes): el stage 1 desaparece (la transcripción llega ya
- * sanitizada en la misma llamada STT) y el stage 2 corre con thinking MEDIUM y salida
- * acotada a 3072 tokens + instrucción de concisión. Stages 3-4 no cambian.
+ * Modo ágil (`fastMode`, Ajustes, y el default): el stage 1 desaparece (la
+ * transcripción llega ya sanitizada en la misma llamada STT) y el stage 2 corre con
+ * thinking MEDIUM en vez de HIGH. Nada más: misma riqueza de análisis, mismo límite
+ * de salida, mismas ideas. Lo único que se negocia es cuánto razona por dentro.
  */
 
 export type GeminiPipelineStage = 'sanitize' | 'analyze' | 'interlocutor';
@@ -35,11 +36,29 @@ Produce un análisis estructurado y profundo en español. Puedes usar markdown c
 Sé extenso donde aporte valor: matices, riesgos, supuestos, contraargumentos, implicaciones y tensiones abiertas.
 No escribas el monólogo hablado final para el usuario; no te dirijas en segunda persona como si fueras la voz de la app. Enfócate en el razonamiento analítico.`;
 
-/** Modo rápido: mismo rol, pero priorizando lo esencial — menos tokens = menos segundos. */
-const ANALYST_FAST_LAYER = `MODO RÁPIDO: sé conciso. Céntrate en las 2-3 ideas de mayor valor (el matiz clave, el riesgo principal, el contraargumento más fuerte) y omite lo secundario. Máxima densidad, mínima extensión.`;
+/**
+ * PRINCIPIO: el modo cambia cuánto PIENSA el analista (thinking level), nunca
+ * cuánto DICE.
+ *
+ * El modo rápido llevaba una capa que le ordenaba «céntrate en 2-3 ideas y omite
+ * lo secundario». Eso no comprimía: BORRABA contenido, y se percibía como que la
+ * IA había perdido el hilo de la conversación (aunque el historial completo sí
+ * viaja en cada turno). Perder ideas es un contra grave para esta app, así que la
+ * capa se retira: los segundos se recortan por arquitectura (STT+sanitiza en una
+ * llamada, troceado del TTS, streaming) y quitando GRASA al interlocutor, no
+ * quitando pensamiento.
+ *
+ * Y el reparto del coste importa: el análisis es INTERNO (nunca se pronuncia),
+ * así que su longitud casi no añade espera. La respuesta hablada sí — cada
+ * carácter son ~0,067 s de audio y ~0,05 s de síntesis. Se recorta ahí, y sin
+ * tocar las ideas.
+ */
 
 /** Inyectado al final del system del interlocutor (salida oral / TTS). */
-export const INTERLOCUTOR_TTS_FORMAT_RULE = `IMPORTANTE: Tu respuesta será leída por un motor de texto a voz (TTS). Debes responder usando exclusivamente prosa natural y fluida. ESTÁ TERMINANTEMENTE PROHIBIDO usar listas, viñetas (bullet points), emojis, asteriscos, palabras en negrita o caracteres especiales de Markdown. Usa puntos y comas para marcar las pausas respiratorias.`;
+export const INTERLOCUTOR_TTS_FORMAT_RULE = `IMPORTANTE: Tu respuesta será leída por un motor de texto a voz (TTS). Debes responder usando exclusivamente prosa natural y fluida. ESTÁ TERMINANTEMENTE PROHIBIDO usar listas, viñetas (bullet points), emojis, asteriscos, palabras en negrita o caracteres especiales de Markdown. Usa puntos y comas para marcar las pausas respiratorias.
+
+DENSIDAD ORAL: cada segundo que hablas es un segundo que el usuario espera escuchando, así que no gastes ninguno en relleno. PROHIBIDO: preámbulos y frases de arranque ("Vamos a ver…", "Es interesante que…"), recapitular o parafrasear lo que el usuario acaba de decir (ya lo sabe), meta-comentarios sobre el análisis o sobre ti mismo, y cierres de cortesía. Entra directo en la primera idea.
+Esto NO significa decir menos: TODAS las ideas de valor del análisis deben aparecer. Se recorta la grasa, nunca el contenido.`;
 
 /** Capa de cierre que transforma cualquier respuesta en un latido final del perfil. */
 export const CORTO_CLOSING_LAYER = `El usuario ha pulsado «Corto»: la conversación termina ahora.
@@ -160,9 +179,8 @@ export async function runGeminiDissertationPipeline(
   // Stage 2 — análisis cognitivo (consumo interno). El modo mueve las palancas de latencia.
   onStage?.('analyze');
   const profileCore = getSystemPromptForProfile(profile);
-  const analystSystem = fastMode
-    ? `${profileCore}\n\n${ANALYST_LAYER}\n\n${ANALYST_FAST_LAYER}`
-    : `${profileCore}\n\n${ANALYST_LAYER}`;
+  // Mismo system en los dos modos: lo único que cambia es el thinking level.
+  const analystSystem = `${profileCore}\n\n${ANALYST_LAYER}`;
 
   const analystTail = collapseConsecutiveUsers([
     ...historyToGeminiContents(history),
@@ -178,9 +196,11 @@ export async function runGeminiDissertationPipeline(
     systemInstruction: analystSystem,
     contents: analystTail,
     temperature: 0.65,
-    maxOutputTokens: fastMode ? 3072 : 8192,
+    // Sin recorte de salida en ningún modo: el análisis es interno y es donde
+    // viven las ideas. El cap de 3072 del modo rápido truncaba pensamiento.
+    maxOutputTokens: 8192,
     thinkingLevel: fastMode ? 'MEDIUM' : GEMINI_THINKING.analyze,
-    stage: fastMode ? 'analyze-fast' : 'analyze',
+    stage: fastMode ? 'analyze-medium' : 'analyze',
   });
   if (!s2.ok) {
     return { ok: false, error: s2.error, stage: 'analyze' };
