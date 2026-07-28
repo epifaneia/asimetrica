@@ -198,6 +198,17 @@ export type PlayDissertationOptions = {
    * (el usuario pre-saltó la respuesta mientras se sintetizaba).
    */
   onSpeechAboutToStart?: () => Promise<boolean> | boolean;
+  /**
+   * Primer trozo YA lanzado a sintetizar mientras el interlocutor seguía
+   * escribiendo (ver `onInterlocutorSentence` del pipeline). Su síntesis, que son
+   * ~11 s, se solapa con la generación del resto del texto en vez de empezar
+   * cuando el texto está completo.
+   *
+   * `text` fuerza el primer trozo del troceado para que el audio precalentado
+   * corresponda exactamente; si no encaja con el inicio del texto final, se
+   * descarta y se trocea normal.
+   */
+  prewarm?: { text: string; job: Promise<TtsResult> };
 };
 
 export async function playDissertationTts(
@@ -227,8 +238,17 @@ export async function playDissertationTts(
   await stopActiveTtsPlayback();
   const gen = playbackGeneration;
 
-  const chunks = splitIntoTtsChunks(trimmed);
+  // Si hay un primer trozo precalentado y encaja con el inicio del texto final,
+  // se respeta tal cual y se reutiliza su audio; si no encaja (el modelo cambió de
+  // idea a mitad), se tira y se trocea como siempre.
+  const pre = opts?.prewarm;
+  const usePrewarm = !!pre && pre.text.length > 0 && trimmed.startsWith(pre.text);
+  const chunks = usePrewarm
+    ? [pre!.text, ...splitIntoTtsChunks(trimmed.slice(pre!.text.length))]
+    : splitIntoTtsChunks(trimmed);
+
   const jobs: (Promise<TtsResult> | null)[] = chunks.map(() => null);
+  if (usePrewarm) jobs[0] = pre!.job;
   const ensureJob = (i: number) => {
     if (i < 0 || i >= chunks.length) return;
     if (!jobs[i]) jobs[i] = synthesizeWithGemini({ apiKey, text: chunks[i], voiceName });

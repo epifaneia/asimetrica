@@ -2,7 +2,12 @@ import { getSystemPromptForProfile } from '@/constants/ai-profile-prompts';
 import type { AiProfileId } from '@/lib/conversador-profile';
 
 import type { ChatTurn } from './aiService';
-import { generateContent, type GeminiTurn } from './geminiClient';
+import {
+  generateContent,
+  generateContentStream,
+  type GeminiResult,
+  type GeminiTurn,
+} from './geminiClient';
 import { GEMINI_MODELS, GEMINI_THINKING } from './geminiModels';
 
 /**
@@ -130,6 +135,12 @@ export type GeminiPipelineParams = {
   libraryBlock?: string;
   /** Notifica cada paso antes de su llamada HTTP. */
   onStage?: (stage: GeminiPipelineStage) => void;
+  /**
+   * Frases completas del interlocutor a medida que se escriben. Permite arrancar
+   * la síntesis de la primera frase sin esperar a que termine de generar el resto
+   * (que son 10-20 s de regalo, sumados a los ~11 s de suelo del TTS).
+   */
+  onInterlocutorSentence?: (sentence: string) => void;
   /** Tras sanitizar (STT listo): texto usuario ya usable en UI / historial. */
   onSanitizedUser?: (sanitizedText: string) => void;
 };
@@ -148,6 +159,7 @@ export async function runGeminiDissertationPipeline(
     libraryBlock,
     onStage,
     onSanitizedUser,
+    onInterlocutorSentence,
   } = params;
 
   const raw = rawUserText.trim();
@@ -248,7 +260,9 @@ export async function runGeminiDissertationPipeline(
     },
   ]);
 
-  const s3 = await generateContent({
+  // Streaming solo cuando alguien escucha las frases; si no, misma llamada de
+  // siempre (el turno de Corto, por ejemplo, no reproduce voz).
+  const s3Params = {
     apiKey,
     modelId: GEMINI_MODELS.interlocutor,
     systemInstruction: interlocutorSystemFull,
@@ -257,7 +271,34 @@ export async function runGeminiDissertationPipeline(
     maxOutputTokens: 4096,
     thinkingLevel: GEMINI_THINKING.interlocutor,
     stage: closingMode ? 'interlocutor-closing' : 'interlocutor',
-  });
+  };
+
+  let s3: GeminiResult;
+  if (onInterlocutorSentence) {
+    let buffer = '';
+    s3 = await generateContentStream({
+      ...s3Params,
+      stage: `${s3Params.stage}-stream`,
+      onDelta: (piece) => {
+        buffer += piece;
+        // Se emite por FRASES, no por trozos del stream: cortar el TTS a mitad de
+        // frase suena roto, y las frases son justo la unidad que la cola de
+        // síntesis necesita.
+        for (;;) {
+          const m = buffer.match(/^[\s\S]*?[.!?…]+["»)\]]?(\s+|$)/);
+          if (!m) break;
+          const sentence = m[0].trim();
+          buffer = buffer.slice(m[0].length);
+          if (sentence) onInterlocutorSentence(sentence);
+        }
+      },
+    });
+    // Cola sin puntuación final: también cuenta.
+    const tail = buffer.trim();
+    if (s3.ok && tail) onInterlocutorSentence(tail);
+  } else {
+    s3 = await generateContent(s3Params);
+  }
   if (!s3.ok) {
     return { ok: false, error: s3.error, stage: 'interlocutor' };
   }

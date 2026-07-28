@@ -184,6 +184,158 @@ export async function generateContent(params: GeminiCallParams): Promise<GeminiR
 }
 
 /**
+ * Igual que `generateContent`, pero avisando del texto a medida que llega
+ * (`streamGenerateContent` con `alt=sse`).
+ *
+ * Existe por una razón concreta: el TTS de Gemini tarda ~0,75x el tiempo real del
+ * audio, así que esperar el texto COMPLETO del interlocutor antes de empezar a
+ * sintetizar regala 15-20 s de silencio. Con esto, la primera frase entra al TTS
+ * en cuanto está escrita.
+ *
+ * Sin reintento: un stream cortado a medias no se puede reanudar sin duplicar
+ * texto ya hablado. El llamante decide si cae al camino no-streaming.
+ */
+export async function generateContentStream(
+  params: GeminiCallParams & { onDelta: (chunk: string) => void }
+): Promise<GeminiResult> {
+  const {
+    apiKey,
+    modelId,
+    systemInstruction,
+    contents,
+    temperature = 0.7,
+    maxOutputTokens = 8192,
+    thinkingLevel,
+    stage,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    onDelta,
+  } = params;
+
+  const startMs = Date.now();
+  const log = (ok: boolean, error?: string) => {
+    if (!stage) return;
+    useDiagnosticStore.getState().push({
+      stage,
+      model: modelId,
+      latencyMs: Date.now() - startMs,
+      ok,
+      error,
+    });
+  };
+
+  if (!apiKey.trim()) return { ok: false, error: 'Falta Google API Key.' };
+  if (!modelId.trim()) return { ok: false, error: 'Falta modelo Gemini.' };
+
+  const url = `${BASE_URL}/${modelId}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey.trim())}`;
+  const generationConfig: Record<string, unknown> = { temperature, maxOutputTokens };
+  if (thinkingLevel) generationConfig.thinkingConfig = { thinkingLevel };
+  const body: Record<string, unknown> = {
+    contents: contents.map((c) => ({ role: c.role, parts: c.parts })),
+    generationConfig,
+  };
+  if (systemInstruction?.trim()) {
+    body.systemInstruction = { parts: [{ text: systemInstruction }] };
+  }
+
+  /**
+   * XMLHttpRequest y no `fetch`: en React Native el fetch es un polyfill sobre XHR
+   * y NO expone `res.body` como stream legible, así que `await res.text()` espera
+   * la respuesta completa — un streaming de mentira que no adelantaría ni un
+   * segundo. XHR sí va acumulando `responseText` y avisando por `onprogress`, que
+   * es lo que de verdad permite empezar a sintetizar la primera frase.
+   */
+  return new Promise<GeminiResult>((resolve) => {
+    let full = '';
+    /** Cuánto de `responseText` se ha consumido ya. */
+    let cursor = 0;
+    /** Resto de línea incompleta entre eventos de progreso. */
+    let carry = '';
+    let settled = false;
+
+    const finish = (r: GeminiResult) => {
+      if (settled) return;
+      settled = true;
+      resolve(r);
+    };
+
+    const consume = (text: string) => {
+      carry += text;
+      const lines = carry.split('\n');
+      carry = lines.pop() ?? ''; // la última puede estar a medias
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t.startsWith('data:')) continue;
+        const payload = t.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          const evt = JSON.parse(payload) as GeminiResponse;
+          const piece = evt.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+          if (piece) {
+            full += piece;
+            onDelta(piece);
+          }
+        } catch {
+          /* evento partido: llegará completo en el siguiente progreso */
+        }
+      }
+    };
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.timeout = timeoutMs;
+
+    xhr.onprogress = () => {
+      const text = xhr.responseText ?? '';
+      if (text.length <= cursor) return;
+      const fresh = text.slice(cursor);
+      cursor = text.length;
+      consume(fresh);
+    };
+
+    xhr.onload = () => {
+      const text = xhr.responseText ?? '';
+      if (text.length > cursor) {
+        consume(text.slice(cursor));
+        cursor = text.length;
+      }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        let msg = `HTTP ${xhr.status}`;
+        try {
+          const data = JSON.parse(text) as GeminiResponse;
+          msg = data.error?.message ?? msg;
+        } catch {
+          /* cuerpo no-JSON */
+        }
+        log(false, msg);
+        finish({ ok: false, error: msg });
+        return;
+      }
+      const out = full.trim();
+      if (!out) {
+        log(false, 'El modelo no devolvió texto.');
+        finish({ ok: false, error: 'El modelo no devolvió texto.' });
+        return;
+      }
+      log(true);
+      finish({ ok: true, text: out });
+    };
+
+    xhr.onerror = () => {
+      log(false, 'Error de red.');
+      finish({ ok: false, error: 'Error de red.' });
+    };
+    xhr.ontimeout = () => {
+      const msg = `Timeout tras ${Math.round(timeoutMs / 1000)} s.`;
+      log(false, msg);
+      finish({ ok: false, error: msg });
+    };
+
+    xhr.send(JSON.stringify(body));
+  });
+}
+
+/**
  * Valida la API key y la disponibilidad de un modelo concreto con una
  * petición mínima. Para el botón "Probar conexión" de Ajustes: si un ID de
  * modelo no existe (los `*-preview` caducan), aquí se ve al instante.

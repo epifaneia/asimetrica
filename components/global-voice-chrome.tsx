@@ -37,6 +37,7 @@ import {
   stopRecapFlow,
 } from '@/services/recapPlaybackService';
 import { generateDissertationTitle } from '@/services/titleGenService';
+import { synthesizeWithGemini, type TtsResult } from '@/services/geminiTtsService';
 import { playDissertationTts, stopActiveTtsPlayback } from '@/services/ttsPlaybackService';
 import { useFoldersStore } from '@/stores/folders-store';
 import { usePendingTurnsStore } from '@/stores/pending-turns-store';
@@ -64,6 +65,11 @@ const FAB_ICON = '#0a0a0a';
 const FAB_BORDER = 'rgba(0,0,0,0.42)';
 const AMBER_RING = 'rgba(201,162,39,0.55)';
 const ICON_SIZE = 30;
+
+/** Mínimo del trozo precalentado: por debajo no compensa la llamada. */
+const TTS_PREWARM_MIN_CHARS = 150;
+/** Debe coincidir con el default de ttsPlaybackService. */
+const DEFAULT_TTS_VOICE = 'Kore';
 
 const TEXT_MUTED = '#6a6a6a';
 const PAUSE_LABEL = '#c4c4c0';
@@ -314,6 +320,8 @@ export function GlobalVoiceChrome() {
       }
 
       ttsManuallyStoppedRef.current = false;
+      const prewarm = prewarmRef.current ?? undefined;
+      prewarmRef.current = null;
       await playDissertationTts(
         text,
         (reason) => {
@@ -328,6 +336,7 @@ export function GlobalVoiceChrome() {
           onNaturalEnd();
         },
         {
+          prewarm,
           /**
            * PISADA TARDÍA. Este callback salta cuando el AUDIO ya está listo, no
            * cuando llega el texto. Antes se cortaba el recap y sonaba el bip al
@@ -360,6 +369,13 @@ export function GlobalVoiceChrome() {
     },
     []
   );
+
+  /**
+   * Primer trozo de la respuesta, ya lanzado a sintetizar mientras el interlocutor
+   * seguía escribiendo. Se rellena desde el streaming del pipeline y lo consume
+   * `speakReplyOrSkip`.
+   */
+  const prewarmRef = useRef<{ text: string; job: Promise<TtsResult> } | null>(null);
 
   const runTurnPipeline = useCallback(
     async (
@@ -428,6 +444,8 @@ export function GlobalVoiceChrome() {
       });
 
       let appendedUserLine = false;
+      let prewarmAccum = '';
+      prewarmRef.current = null;
       const result = await runGeminiDissertationPipeline({
         apiKey: googleApiKey,
         rawUserText: tr.text,
@@ -438,6 +456,29 @@ export function GlobalVoiceChrome() {
         fastMode,
         libraryBlock: libCtx.block,
         onStage: (stage) => setBusyPhase(stage),
+        /**
+         * Arranca la síntesis del primer trozo en cuanto hay frases suficientes,
+         * sin esperar a que el interlocutor termine de escribir. Esos ~11 s de
+         * síntesis se solapan con los 10-20 s que aún tarda en generar el resto.
+         * Solo si vamos a hablar: en el turno de Corto no se reproduce voz.
+         */
+        onInterlocutorSentence: closingMode
+          ? undefined
+          : (sentence) => {
+              if (prewarmRef.current) return; // ya lanzado
+              prewarmAccum += (prewarmAccum ? ' ' : '') + sentence;
+              if (prewarmAccum.length < TTS_PREWARM_MIN_CHARS) return;
+              const text = prewarmAccum;
+              prewarmRef.current = {
+                text,
+                job: synthesizeWithGemini({
+                  apiKey: googleApiKey,
+                  text,
+                  voiceName:
+                    useUserSettingsStore.getState().ttsVoiceId.trim() || DEFAULT_TTS_VOICE,
+                }),
+              };
+            },
         // Punto de bifurcación de los dos hilos: aquí ya hay texto del usuario y
         // el analista (Pro, thinking HIGH) está a punto de arrancar. El recap sale
         // AHORA, en paralelo, para ocupar ese tiempo muerto — nunca antes, o
