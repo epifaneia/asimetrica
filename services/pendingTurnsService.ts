@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 import { resolveConversadorSystemPrompt } from '@/lib/conversador-profile';
 import { runGeminiDissertationPipeline } from '@/services/geminiPipelineService';
+import { buildLibraryContext } from '@/services/libraryRetrieval';
 import { transcribeAudioWithGemini } from '@/services/geminiTranscriptionService';
 import { useFoldersStore } from '@/stores/folders-store';
 import { usePendingTurnsStore, type PendingTurn } from '@/stores/pending-turns-store';
@@ -68,6 +69,18 @@ async function processOne(apiKey: string, turn: PendingTurn): Promise<ProcessOne
     settings.conversadorProfiles
   );
 
+  // Un turno recuperado de la bandeja tiene que salir con la MISMA jaula que si
+  // hubiera ido en directo: si no, el turno rescatado ignoraría el canon del autor.
+  const libFolderId = docId
+    ? folders.dissertations.find((d) => d.id === docId)?.folderId ?? null
+    : turn.folderId;
+  const libCtx = await buildLibraryContext({
+    apiKey,
+    folderId: libFolderId,
+    queryText: tr.text,
+    previousUserText: [...history].reverse().find((m) => m.role === 'user')?.content,
+  });
+
   const result = await runGeminiDissertationPipeline({
     apiKey,
     rawUserText: tr.text,
@@ -76,6 +89,7 @@ async function processOne(apiKey: string, turn: PendingTurn): Promise<ProcessOne
     interlocutorSystemPrompt: interlocutorPrompt,
     closingMode: turn.closingMode,
     fastMode,
+    libraryBlock: libCtx.block,
   });
   if (!result.ok) return { ok: false, docId: null };
 

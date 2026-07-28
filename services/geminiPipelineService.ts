@@ -122,6 +122,12 @@ export type GeminiPipelineParams = {
    * y salida acotada. El modo profundo es el comportamiento original.
    */
   fastMode?: boolean;
+  /**
+   * Bloque de jaula (biblioteca de obra) para el system del ANALISTA. El
+   * interlocutor NO lo recibe: su trabajo es traducir a registro oral, no saber.
+   * Vacío o ausente = pipeline idéntico al de antes de existir la biblioteca.
+   */
+  libraryBlock?: string;
   /** Notifica cada paso antes de su llamada HTTP. */
   onStage?: (stage: GeminiPipelineStage) => void;
   /** Tras sanitizar (STT listo): texto usuario ya usable en UI / historial. */
@@ -139,6 +145,7 @@ export async function runGeminiDissertationPipeline(
     interlocutorSystemPrompt,
     closingMode = false,
     fastMode = false,
+    libraryBlock,
     onStage,
     onSanitizedUser,
   } = params;
@@ -180,7 +187,10 @@ export async function runGeminiDissertationPipeline(
   onStage?.('analyze');
   const profileCore = getSystemPromptForProfile(profile);
   // Mismo system en los dos modos: lo único que cambia es el thinking level.
-  const analystSystem = `${profileCore}\n\n${ANALYST_LAYER}`;
+  // La jaula va al final, después del rol y de la capa de análisis.
+  const analystSystem = [profileCore, ANALYST_LAYER, libraryBlock?.trim() || '']
+    .filter(Boolean)
+    .join('\n\n');
 
   const analystTail = collapseConsecutiveUsers([
     ...historyToGeminiContents(history),

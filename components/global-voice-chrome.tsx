@@ -5,6 +5,7 @@ import {
 } from '@/constants/ambient-asset';
 import { DOCK_FAB_SIZE, DOCK_VERTICAL_PADDING } from '@/constants/dock-metrics';
 import { ensureAmbientBed, setAmbientLevel } from '@/services/ambientLoopService';
+import { buildLibraryContext, clearLibraryCache } from '@/services/libraryRetrieval';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import { useWiredMediaCambio } from '@/hooks/useWiredMediaCambio';
 import {
@@ -262,6 +263,9 @@ export function GlobalVoiceChrome() {
     // Nada del hilo corto puede sobrevivir a la sesión: corta voz y colchón, y
     // libera el reproductor del ambiente.
     disposeRecap();
+    // Los embeddings de una novela son megas en RAM: útiles durante el paseo
+    // (el coseno del 2º turno en adelante es instantáneo), nada que hacer después.
+    clearLibraryCache();
 
     setSession(null);
     setPhase('RECORDING');
@@ -403,6 +407,26 @@ export function GlobalVoiceChrome() {
         settings.conversadorProfiles
       );
 
+      /**
+       * Jaula: qué trozos de la obra del autor entran en ESTE turno. Se resuelve
+       * antes del pipeline porque el analista necesita el bloque en su system.
+       *
+       * Se consulta con el texto del STT sin sanitizar: a un modelo de embeddings
+       * las muletillas le dan igual, y así no hay que esperar al stage 1.
+       * Sin documentos activos en la carpeta no se hace NI UNA llamada extra y el
+       * pipeline queda exactamente como antes de existir la biblioteca.
+       */
+      const libFolderId = docId
+        ? useFoldersStore.getState().dissertations.find((d) => d.id === docId)?.folderId ?? null
+        : resolveTargetFolderId();
+      const lastUserTurn = [...history].reverse().find((m) => m.role === 'user')?.content;
+      const libCtx = await buildLibraryContext({
+        apiKey: googleApiKey,
+        folderId: libFolderId,
+        queryText: tr.text,
+        previousUserText: lastUserTurn,
+      });
+
       let appendedUserLine = false;
       const result = await runGeminiDissertationPipeline({
         apiKey: googleApiKey,
@@ -412,6 +436,7 @@ export function GlobalVoiceChrome() {
         interlocutorSystemPrompt: interlocutorPrompt,
         closingMode,
         fastMode,
+        libraryBlock: libCtx.block,
         onStage: (stage) => setBusyPhase(stage),
         // Punto de bifurcación de los dos hilos: aquí ya hay texto del usuario y
         // el analista (Pro, thinking HIGH) está a punto de arrancar. El recap sale
