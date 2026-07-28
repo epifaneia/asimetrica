@@ -378,10 +378,16 @@ export default function SettingsScreen() {
             No basta con escribir un correo: Google exige iniciar sesión y aceptar permisos (OAuth). Puedes usar
             un ID de cliente propio (BYOK) o definir{' '}
             <Text style={styles.mono}>EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID</Text> en{' '}
-            <Text style={styles.mono}>.env</Text>. En Google Cloud Console: APIs habilitadas Google Drive +
-            Google Docs, pantalla de consentimiento (añádete como usuario de prueba) y un ID de cliente OAuth de
-            tipo <Text style={styles.helpEmphasis}>Android</Text> — con el nombre de paquete{' '}
+            <Text style={styles.mono}>.env</Text>. En Google Cloud Console: habilita{' '}
+            <Text style={styles.helpEmphasis}>solo la API de Google Drive</Text> (la de Docs ya no se usa),
+            configura la pantalla de consentimiento y crea un ID de cliente OAuth de tipo{' '}
+            <Text style={styles.helpEmphasis}>Android</Text> — con el nombre de paquete{' '}
             <Text style={styles.mono}>app.asimetrica</Text> y la huella SHA-1 de tu keystore de firma.
+          </Text>
+          <Text style={styles.help}>
+            El único permiso que se pide es <Text style={styles.mono}>drive.file</Text>, que no es sensible:
+            la app solo ve los archivos que ella misma crea, nada más de tu Drive. Por eso no hace falta
+            verificación y la vinculación no caduca cada semana.
           </Text>
           <Text style={styles.help}>
             Ojo: los tipos <Text style={styles.helpEmphasis}>«Aplicación de escritorio»</Text> y «Aplicación web»{' '}

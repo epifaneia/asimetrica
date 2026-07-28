@@ -13,11 +13,17 @@ const GOOGLE_DISCOVERY = {
   tokenEndpoint: 'https://oauth2.googleapis.com/token',
 };
 
-const DRIVE_DOCS_SCOPES = [
-  'openid',
-  'https://www.googleapis.com/auth/drive.file',
-  'https://www.googleapis.com/auth/documents',
-];
+/**
+ * Solo `drive.file`, que NO es un scope sensible para Google: nada de
+ * verificación de la app y nada de refresh tokens caducando a los 7 días con la
+ * pantalla de consentimiento en "Testing".
+ *
+ * `auth/documents` desapareció al dejar que Drive convierta el documento en la
+ * propia subida (ver googleDocsExport). Y `drive.file` es además el scope
+ * estrecho que Google recomienda: esta app solo ve los archivos que ella misma
+ * crea, no el resto de tu Drive.
+ */
+const DRIVE_DOCS_SCOPES = ['openid', 'https://www.googleapis.com/auth/drive.file'];
 
 export function getGoogleOAuthRedirectUri(): string {
   return makeRedirectUri({ path: 'google-auth' });
