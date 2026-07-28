@@ -12,6 +12,7 @@ import {
 import { useLibraryStore, type LibraryDoc, type LibraryDocKind } from '@/stores/library-store';
 
 import { embedDocumentChunks } from './geminiEmbeddingService';
+import { extractPdfText } from './pdfTextExtraction';
 
 /**
  * Ingesta de la biblioteca de obra: fuente → texto → chunks → embeddings.
@@ -250,21 +251,26 @@ export async function runIngestion(docId: string, apiKey: string): Promise<void>
     if (doc.status === 'pendiente' || doc.status === 'extrayendo') {
       patch({ status: 'extrayendo', errorMessage: null });
 
-      if (doc.kind === 'pdf') {
-        // Fase 1b: extracción PDF vía Gemini Files. Aún no cableada.
-        patch({
-          status: 'error',
-          errorMessage: 'PDF llega en la siguiente fase. De momento: txt o md.',
-        });
-        return;
-      }
-
       let text: string;
-      try {
-        text = await FileSystem.readAsStringAsync(`${libraryDocDir(docId)}source.${doc.kind}`);
-      } catch (e) {
-        patch({ status: 'error', errorMessage: `No se pudo leer la fuente: ${e instanceof Error ? e.message : e}` });
-        return;
+      if (doc.kind === 'pdf') {
+        // Gemini multimodal transcribe el PDF: una vez, en la ingesta. Los turnos
+        // del paseo no pagan nada de esto.
+        const ext = await extractPdfText({
+          apiKey,
+          fileUri: `${libraryDocDir(docId)}source.pdf`,
+        });
+        if (!ext.ok) {
+          patch({ status: 'error', errorMessage: ext.error });
+          return;
+        }
+        text = ext.text;
+      } else {
+        try {
+          text = await FileSystem.readAsStringAsync(`${libraryDocDir(docId)}source.${doc.kind}`);
+        } catch (e) {
+          patch({ status: 'error', errorMessage: `No se pudo leer la fuente: ${e instanceof Error ? e.message : e}` });
+          return;
+        }
       }
       text = text.replace(/\r\n/g, '\n').trim();
       if (!text) {

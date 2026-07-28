@@ -94,15 +94,7 @@ export default function LibraryScreen() {
     if (!kind) {
       setInfoModal({
         title: 'Formato no soportado',
-        message: 'De momento: .txt y .md. (PDF llega en la siguiente fase.)',
-      });
-      return;
-    }
-    if (kind === 'pdf') {
-      setInfoModal({
-        title: 'PDF: siguiente fase',
-        message:
-          'La extracción de PDF llega en la siguiente fase. Ojo además con PDFs ricos en imágenes: solo se extraerá el texto — mapas, tablas complejas e ilustraciones se pierden.',
+        message: 'Solo .txt, .md y .pdf. Cualquier otra cosa, pásala a texto antes.',
       });
       return;
     }
@@ -143,6 +135,11 @@ export default function LibraryScreen() {
           normas son canon vinculante para el análisis. Asigna cada documento a las carpetas donde
           debe actuar — sin asignar, no actúa.
         </Text>
+        <Text style={styles.help}>
+          De un <Text style={styles.helpEmphasis}>PDF solo viaja el texto</Text>: mapas, tablas
+          complejas e ilustraciones se quedan fuera. Si lo importante de un documento está en las
+          imágenes, esto no lo va a ver.
+        </Text>
 
         {!apiKey ? (
           <Text style={styles.warning}>
@@ -157,7 +154,7 @@ export default function LibraryScreen() {
           accessibilityLabel="Añadir documento"
         >
           <Ionicons name="add" size={22} color="#0a0a0a" />
-          <Text style={styles.addBtnText}>Añadir documento (txt · md)</Text>
+          <Text style={styles.addBtnText}>Añadir documento (txt · md · pdf)</Text>
         </Pressable>
 
         <FlatList
