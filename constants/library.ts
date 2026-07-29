@@ -35,10 +35,29 @@ export const EMBEDDING_BATCH_SIZE = 64;
 export const FULL_INJECT_MAX_CHARS = 8_000;
 /** Presupuesto total de inyección completa por carpeta; el exceso pasa a retrieval. */
 export const FULL_INJECT_FOLDER_BUDGET_CHARS = 24_000;
-/** Nº de chunks recuperados por turno. */
+/** Nº máximo de chunks recuperados por turno. */
 export const RETRIEVAL_TOP_K = 6;
-/** Similitud coseno mínima para que un chunk entre (evita ruido en turnos off-topic). */
-export const RETRIEVAL_MIN_SCORE = 0.5;
+
+/**
+ * NO hay umbral absoluto de similitud, y esto está medido, no supuesto.
+ *
+ * `gemini-embedding-001` no devuelve valores calibrados: dos textos cualesquiera
+ * en español ya puntúan 0,55-0,60 solo por compartir idioma. Con un umbral
+ * absoluto de 0,5, en una prueba real con 6 capítulos de novela pasaban 6 de 6
+ * tanto para «el naufragio del pesquero» (correcto) como para «renovar el seguro
+ * del coche» (nada que ver). O sea: un turno fuera de tema le habría inyectado al
+ * analista seis pasajes al azar de la obra como si fueran canon relevante.
+ *
+ * Lo que SÍ discrimina es la FORMA de la distribución. Con consulta pertinente el
+ * primero despunta sobre la mediana (medido: +0,067 y +0,116); con consulta ajena
+ * la distribución es plana (+0,0095).
+ */
+/** El primero debe despuntar esto sobre la mediana, o no se recupera NADA. */
+export const RETRIEVAL_MIN_MARGIN = 0.04;
+/** Ya dentro, se admite lo que caiga a esta distancia del mejor. */
+export const RETRIEVAL_RELATIVE_DROP = 0.05;
+/** Con menos chunks que esto la mediana no es fiable: se salta la comprobación. */
+export const RETRIEVAL_MIN_CHUNKS_FOR_MARGIN = 4;
 /** Presupuesto máximo de caracteres de chunks inyectados por turno. */
 export const RETRIEVAL_BUDGET_CHARS = 16_000;
 

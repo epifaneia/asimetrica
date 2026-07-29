@@ -1,7 +1,9 @@
 import {
   FULL_INJECT_FOLDER_BUDGET_CHARS,
   RETRIEVAL_BUDGET_CHARS,
-  RETRIEVAL_MIN_SCORE,
+  RETRIEVAL_MIN_CHUNKS_FOR_MARGIN,
+  RETRIEVAL_MIN_MARGIN,
+  RETRIEVAL_RELATIVE_DROP,
   RETRIEVAL_TOP_K,
 } from '@/constants/library';
 import { useDiagnosticStore } from '@/stores/diagnostic-store';
@@ -123,6 +125,8 @@ export async function buildLibraryContext(params: {
   // --- Documentos grandes: top-k por similitud --------------------------------
   const big = active.filter((d) => d.nChunks > 0);
   const chunks: RetrievedChunk[] = [];
+  /** Cuánto despuntaba el mejor sobre la mediana: va a Diagnóstico para afinar. */
+  let margin: number | null = null;
 
   if (big.length > 0) {
     const query = [previousUserText?.trim(), queryText.trim()]
@@ -139,30 +143,47 @@ export async function buildLibraryContext(params: {
         if (!loaded) continue;
         const n = Math.min(loaded.chunks.length, Math.floor(loaded.vectors.length / dims));
         for (let i = 0; i < n; i++) {
-          const score = dot(loaded.vectors, i * dims, q.vector, dims);
-          if (score < RETRIEVAL_MIN_SCORE) continue;
           scored.push({
             docId: doc.id,
             docTitle: doc.title,
             chunkIndex: i,
-            score,
+            score: dot(loaded.vectors, i * dims, q.vector, dims),
             text: loaded.chunks[i].text,
           });
         }
       }
       scored.sort((a, b) => b.score - a.score);
-      let budget = RETRIEVAL_BUDGET_CHARS;
-      for (const c of scored) {
-        if (chunks.length >= RETRIEVAL_TOP_K) break;
-        if (c.text.length > budget) continue;
-        budget -= c.text.length;
-        chunks.push(c);
+
+      /**
+       * Criterio RELATIVO, no absoluto (ver el razonamiento medido en
+       * constants/library.ts). Si el mejor no despunta sobre la mediana, este turno
+       * no va de la obra y NO se recupera nada: mejor sin jaula que con seis
+       * pasajes al azar presentados como canon relevante.
+       */
+      if (scored.length > 0) {
+        const median = scored[Math.floor(scored.length / 2)].score;
+        const best = scored[0].score;
+        const enoughToJudge = scored.length >= RETRIEVAL_MIN_CHUNKS_FOR_MARGIN;
+        const relevant = !enoughToJudge || best - median >= RETRIEVAL_MIN_MARGIN;
+
+        if (relevant) {
+          const floor = best - RETRIEVAL_RELATIVE_DROP;
+          let budget = RETRIEVAL_BUDGET_CHARS;
+          for (const c of scored) {
+            if (chunks.length >= RETRIEVAL_TOP_K) break;
+            if (c.score < floor) break; // ordenado: en cuanto uno cae, los demás también
+            if (c.text.length > budget) continue;
+            budget -= c.text.length;
+            chunks.push(c);
+          }
+        }
+        margin = best - median;
       }
     }
   }
 
   if (fullTexts.length === 0 && chunks.length === 0) {
-    logContext({ fullDocs, chunks, skippedFullDocs });
+    logContext({ fullDocs, chunks, skippedFullDocs }, margin);
     return { ...EMPTY, skippedFullDocs };
   }
 
@@ -191,7 +212,7 @@ ${chunks
   }
 
   const block = sections.join('\n\n');
-  logContext({ fullDocs, chunks, skippedFullDocs });
+  logContext({ fullDocs, chunks, skippedFullDocs }, margin);
   return { block, fullDocs, chunks, skippedFullDocs };
 }
 
@@ -199,8 +220,14 @@ ${chunks
  * Traza en Diagnóstico qué entró en la jaula. Para el autor es la diferencia entre
  * magia y sospecha; para afinar k y umbral, la única herramienta que hay.
  */
-function logContext(ctx: Omit<LibraryContext, 'block'>): void {
+function logContext(ctx: Omit<LibraryContext, 'block'>, margin: number | null): void {
   const parts: string[] = [];
+  if (margin !== null) {
+    // El margen sobre la mediana es LA cifra para afinar RETRIEVAL_MIN_MARGIN con
+    // obra real: si turnos claramente sobre la obra salen con margen bajo, hay que
+    // bajarlo; si entra ruido, subirlo.
+    parts.push(`margen ${margin.toFixed(3)} (mín ${RETRIEVAL_MIN_MARGIN})`);
+  }
   if (ctx.fullDocs.length) {
     parts.push(`completos: ${ctx.fullDocs.map((d) => `${d.title} (${d.chars}c)`).join(', ')}`);
   }
