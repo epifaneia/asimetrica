@@ -22,6 +22,7 @@ const RECAP_SYSTEM = `Eres un confirmador de escucha. Recibes la transcripción 
 Formato de salida EXACTO, sin markdown ni asteriscos:
 
 ANCLAS: term1 | term2 | term3
+PROFUNDA: si o no
 - idea uno
 - idea dos
 - idea tres
@@ -29,11 +30,12 @@ ANCLAS: term1 | term2 | term3
 Reglas:
 - ANCLAS: entre 3 y 6 términos COPIADOS LITERALMENTE de la transcripción (nombres propios, cifras, tecnicismos, palabras raras). NO los corrijas, NO los normalices, NO los traduzcas: sirven para que el hablante detecte fallos de transcripción. Si la transcripción dice algo raro, cópialo raro.
 - BULLETS: entre 3 y 7 líneas que empiecen por "- ", cada una una idea que el hablante haya dicho, usando SUS palabras siempre que puedas. Frases cortas y orales (las va a leer un motor de voz).
+- PROFUNDA: responde "si" solo cuando el hablante esté pidiendo una investigación a fondo, exhaustiva, de muchas fuentes o de mucho alcance. Interpreta lo que quiere decir, no busques palabras concretas: hay infinitas formas de pedir profundidad. Ante la duda, responde "no": una búsqueda rápida de menos vale más que una investigación larga que nadie pidió.
 - No inventes nada que no esté en la transcripción.
 - Usa el mismo idioma que la transcripción.`;
 
 export type RecapResult =
-  | { ok: true; anchors: string[]; bullets: string[] }
+  | { ok: true; anchors: string[]; bullets: string[]; deep: boolean }
   | { ok: false; error: string };
 
 export async function generateRecap(params: {
@@ -73,9 +75,10 @@ export async function generateRecap(params: {
  * "algo que leer" antes que romper la espera activa. Un recap imperfecto vale
  * más que un silencio de 60 segundos.
  */
-function parseRecap(text: string): { anchors: string[]; bullets: string[] } {
+function parseRecap(text: string): { anchors: string[]; bullets: string[]; deep: boolean } {
   const anchors: string[] = [];
   const bullets: string[] = [];
+  let deep = false;
 
   for (const rawLine of text.split('\n')) {
     const line = rawLine.replace(/[*_`]/g, '').trim();
@@ -87,6 +90,15 @@ function parseRecap(text: string): { anchors: string[]; bullets: string[] } {
         const t = a.trim();
         if (t) anchors.push(t);
       }
+      continue;
+    }
+
+    const deepMatch = line.match(/^PROFUNDA\s*:\s*(.+)$/i);
+    if (deepMatch) {
+      // Solo un "sí" explícito y aislado cuenta; lo demás deja el default barato.
+      // Ojo: "sin" empieza por "si", así que sin el corte de palabra una
+      // respuesta como «sin necesidad de profundizar» lanzaría el proceso caro.
+      deep = /^s[ií](?![a-zñáéíóú])/i.test(deepMatch[1].trim());
       continue;
     }
 
@@ -106,5 +118,5 @@ function parseRecap(text: string): { anchors: string[]; bullets: string[] } {
     }
   }
 
-  return { anchors: anchors.slice(0, 6), bullets: bullets.slice(0, 7) };
+  return { anchors: anchors.slice(0, 6), bullets: bullets.slice(0, 7), deep };
 }

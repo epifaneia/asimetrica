@@ -28,7 +28,11 @@ import { runGeminiDissertationPipeline } from '@/services/geminiPipelineService'
 import { transcribeAudioWithGemini } from '@/services/geminiTranscriptionService';
 import { exportDissertationToGoogleDoc } from '@/services/googleDocsExport';
 import { getGoogleAccessTokenSilently } from '@/services/googleOAuthFlow';
-import { preservePendingAudio, runClosingTurnDetached } from '@/services/pendingTurnsService';
+import {
+  launchResearchJob,
+  preservePendingAudio,
+  runClosingTurnDetached,
+} from '@/services/pendingTurnsService';
 import {
   disposeRecap,
   isRecapSpeaking,
@@ -37,6 +41,7 @@ import {
   startRecap,
   stopRecapFlow,
 } from '@/services/recapPlaybackService';
+import { generateRecap } from '@/services/recapService';
 import { generateDissertationTitle } from '@/services/titleGenService';
 import { synthesizeWithGemini, type TtsResult } from '@/services/geminiTtsService';
 import { playDissertationTts, stopActiveTtsPlayback } from '@/services/ttsPlaybackService';
@@ -47,6 +52,7 @@ import { useVoiceRouteStore } from '@/stores/voice-route-store';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useKeepAwake } from 'expo-keep-awake';
+import * as Speech from 'expo-speech';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -121,6 +127,31 @@ type Session = {
   /** Doc destino. `null` hasta que termina el primer turno y se crea la disertación. */
   docId: string | null;
 };
+
+/**
+ * Read-back de que la investigación ya está en marcha, con las anclas del recap
+ * para que oigas qué entendió. Voz del sistema: instantánea y distinta de la voz
+ * real, así que se reconoce como confirmación y no como respuesta.
+ */
+async function speakResearchLaunched(anchors: string[]): Promise<void> {
+  const anclas = anchors.length ? ` Sobre ${anchors.slice(0, 4).join(', ')}.` : '';
+  try {
+    Speech.speak(
+      `Investigación profunda en marcha.${anclas} El informe aparecerá en la carpeta cuando esté.`,
+      { rate: 1.0 }
+    );
+  } catch {
+    /* sin voz del sistema el trabajo sigue: el banner ya lo cuenta */
+  }
+}
+
+/** Carpeta cuya biblioteca aplica a este turno: la del doc, o la de destino. */
+function libFolderIdFor(docId: string | null): string | null {
+  if (docId) {
+    return useFoldersStore.getState().dissertations.find((d) => d.id === docId)?.folderId ?? null;
+  }
+  return resolveTargetFolderId();
+}
 
 /** Carpeta destino implícita del turno actual (misma lógica que la persistencia). */
 function resolveTargetFolderId(): string | null {
@@ -425,6 +456,38 @@ export function GlobalVoiceChrome() {
       );
 
       /**
+       * INVESTIGACIÓN PROFUNDA. Aquí el recap deja de correr en paralelo y pasa a
+       * ser una PUERTA: se espera su veredicto, se dice en voz alta qué se va a
+       * hacer, y solo entonces se gasta.
+       *
+       * Esa serialización no es un coste, es el requisito: una investigación
+       * profunda cuesta 1-3 $ y tarda minutos, así que el aviso tiene que sonar
+       * ANTES de lanzarla o no sirve para abortar. Y el default es siempre la
+       * búsqueda normal: el recap solo escala si de tus palabras se deduce que
+       * pides profundidad.
+       */
+      if (profile === WEB_SEARCH_PROFILE && !closingMode) {
+        const verdict = await generateRecap({ apiKey: googleApiKey, text: tr.text });
+        if (verdict.ok && verdict.deep) {
+          const launched = await launchResearchJob({
+            apiKey: googleApiKey,
+            brief: tr.text,
+            folderId: libFolderIdFor(docId),
+          });
+          setBusyPhase(null);
+          if (!launched.ok) {
+            playNegativeCue();
+            return { ok: false };
+          }
+          // La investigación vive ya en el servidor y su id está persistido: el
+          // informe aterriza en la biblioteca de la carpeta cuando esté, aunque
+          // cierres la app. No hay respuesta hablada que esperar.
+          void speakResearchLaunched(verdict.anchors);
+          return { ok: false };
+        }
+      }
+
+      /**
        * Jaula: qué trozos de la obra del autor entran en ESTE turno. Se resuelve
        * antes del pipeline porque el analista necesita el bloque en su system.
        *
@@ -433,9 +496,7 @@ export function GlobalVoiceChrome() {
        * Sin documentos activos en la carpeta no se hace NI UNA llamada extra y el
        * pipeline queda exactamente como antes de existir la biblioteca.
        */
-      const libFolderId = docId
-        ? useFoldersStore.getState().dissertations.find((d) => d.id === docId)?.folderId ?? null
-        : resolveTargetFolderId();
+      const libFolderId = libFolderIdFor(docId);
       const lastUserTurn = [...history].reverse().find((m) => m.role === 'user')?.content;
       const libCtx = await buildLibraryContext({
         apiKey: googleApiKey,

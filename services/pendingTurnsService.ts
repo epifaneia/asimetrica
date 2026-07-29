@@ -2,7 +2,9 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 import { WEB_SEARCH_PROFILE } from '@/constants/ai-profile-prompts';
 import { resolveConversadorSystemPrompt } from '@/lib/conversador-profile';
+import { launchDeepResearch, pollDeepResearch } from '@/services/deepResearchService';
 import { runGeminiDissertationPipeline } from '@/services/geminiPipelineService';
+import { addLibraryDocumentFromText } from '@/services/libraryIngestService';
 import { buildLibraryContext } from '@/services/libraryRetrieval';
 import { transcribeAudioWithGemini } from '@/services/geminiTranscriptionService';
 import { useFoldersStore } from '@/stores/folders-store';
@@ -142,6 +144,80 @@ export async function processPendingTurns(apiKey: string): Promise<PendingProces
  *   - si la app MUERE a mitad → sigue en la bandeja al reabrir,
  *   - si va bien → `processOne` lo saca de la bandeja y borra el audio.
  */
+/**
+ * Investigación profunda, desacoplada igual que el Corto: se lanza, la sesión
+ * sigue su camino y el informe aterriza solo en la Biblioteca de la carpeta.
+ *
+ * No se lee en voz alta a propósito. Un informe con fuentes son cinco minutos de
+ * escucha y no se puede preguntar a un audio; como documento de la biblioteca, el
+ * autor CONVERSA con él después — que es el uso bueno.
+ *
+ * Reutiliza el contador de cierres en vuelo para el banner: desde fuera es lo
+ * mismo, «algo tuyo se está cocinando y aterriza solo».
+ */
+export async function launchResearchJob(params: {
+  apiKey: string;
+  brief: string;
+  folderId: string | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  const res = await launchDeepResearch({ apiKey: params.apiKey, brief: params.brief });
+  if (!res.ok) return { ok: false, error: res.error };
+  // Persistido en cuanto existe el id: a partir de aquí la investigación es
+  // recuperable aunque el paseo siga, la app se vaya al fondo o muera.
+  usePendingTurnsStore.getState().addResearch({
+    interactionId: res.interactionId,
+    brief: params.brief,
+    folderId: params.folderId,
+  });
+  return { ok: true };
+}
+
+/**
+ * Sondea las investigaciones en vuelo y aterriza las que ya estén. Se llama al
+ * abrir la app y cada cierto rato mientras esté en primer plano.
+ *
+ * Un fallo de red NO descarta el trabajo: `pollDeepResearch` devuelve «running» y
+ * se reintenta en el siguiente sondeo. Solo se saca de la lista cuando aterriza o
+ * cuando el servidor dice que aquello acabó mal de verdad.
+ */
+export async function processResearchJobs(apiKey: string): Promise<{ landed: number }> {
+  if (!apiKey.trim()) return { landed: 0 };
+  const jobs = [...usePendingTurnsStore.getState().research];
+  let landed = 0;
+
+  for (const job of jobs) {
+    const res = await pollDeepResearch({ apiKey, interactionId: job.interactionId });
+    if (res.state === 'running') continue;
+
+    if (res.state === 'failed') {
+      usePendingTurnsStore.getState().removeResearch(job.id);
+      continue;
+    }
+
+    const added = await addLibraryDocumentFromText({
+      apiKey,
+      title: researchTitleFromBrief(job.brief),
+      text: res.report,
+      folderIds: job.folderId ? [job.folderId] : [],
+    });
+    // Solo se descarta el trabajo si el informe quedó guardado: si el alta falla,
+    // se reintenta en el siguiente sondeo antes que perder el informe.
+    if (added.ok) {
+      usePendingTurnsStore.getState().removeResearch(job.id);
+      landed += 1;
+    }
+  }
+  return { landed };
+}
+
+/** Título del documento a partir del encargo, sin gastar una llamada en ello. */
+function researchTitleFromBrief(brief: string): string {
+  const clean = brief.replace(/\s+/g, ' ').trim();
+  const firstSentence = clean.split(/(?<=[.!?])\s/)[0] ?? clean;
+  const base = firstSentence.length > 70 ? `${firstSentence.slice(0, 70)}…` : firstSentence;
+  return `Investigación · ${base}`;
+}
+
 export async function runClosingTurnDetached(params: {
   apiKey: string;
   /** Audio recién grabado, todavía en cache. */

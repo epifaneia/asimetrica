@@ -7,7 +7,7 @@ import {
   exportFolderAsIndividualDocs,
 } from '@/services/googleDocsExport';
 import { ensureGoogleAccessToken } from '@/services/googleOAuthFlow';
-import { processPendingTurns } from '@/services/pendingTurnsService';
+import { processPendingTurns, processResearchJobs } from '@/services/pendingTurnsService';
 import {
   getAllDissertationsInTree,
   useFoldersStore,
@@ -86,6 +86,7 @@ export default function StudyDashboardScreen() {
   // --- Resiliencia de campo: bandeja de pendientes + recuperación de crash ---
   const pendingCount = usePendingTurnsStore((s) => s.pending.length);
   const closingInFlight = usePendingTurnsStore((s) => s.closingInFlight);
+  const researchCount = usePendingTurnsStore((s) => s.research.length);
   const [pendingBusy, setPendingBusy] = useState(false);
   const [recoveryMark, setRecoveryMark] = useState<ActiveSessionMark | null>(null);
 
@@ -187,6 +188,28 @@ export default function StudyDashboardScreen() {
     if (!hydrated) return;
     useFoldersStore.getState().ensureExampleFoldersIfEmpty();
   }, [hydrated]);
+
+  /**
+   * Investigaciones profundas en vuelo: se sondean al abrir el dashboard y cada
+   * medio minuto mientras esté delante. El agente tarda minutos y su id está
+   * persistido, así que esto es lo que hace que el informe aterrice aunque hayas
+   * cerrado la app entre medias.
+   */
+  useEffect(() => {
+    if (researchCount === 0) return;
+    let alive = true;
+    const tick = () => {
+      if (!alive) return;
+      const key = resolveGoogleApiKey(useUserSettingsStore.getState().googleApiKey);
+      if (key) void processResearchJobs(key);
+    };
+    tick();
+    const timer = setInterval(tick, 30_000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [researchCount]);
 
   const listShellPaddingBottom = voiceChromeBottom + DOCK_BARRIER_GAP;
 
@@ -404,6 +427,19 @@ export default function StudyDashboardScreen() {
             <ActivityIndicator size="small" color={ACCENT_AMBER} />
             <Text style={styles.pendingBannerText}>
               Cerrando conversación… la última respuesta aterriza sola
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Investigación profunda: tarda minutos y su id está persistido, así que
+            esto sigue ahí aunque hayas cerrado la app entre medias. */}
+        {researchCount > 0 ? (
+          <View style={styles.pendingBanner}>
+            <ActivityIndicator size="small" color={ACCENT_AMBER} />
+            <Text style={styles.pendingBannerText}>
+              {researchCount === 1
+                ? 'Investigando… el informe irá a la biblioteca de su carpeta'
+                : `${researchCount} investigaciones en marcha… los informes irán a sus carpetas`}
             </Text>
           </View>
         ) : null}

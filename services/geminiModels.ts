@@ -44,6 +44,21 @@ export const GEMINI_MODELS = {
   embedding: env('EXPO_PUBLIC_GEMINI_EMBEDDING_MODEL') ?? 'gemini-embedding-001',
 } as const;
 
+/**
+ * Agente de investigación profunda. NO es un modelo de `generateContent`: se usa
+ * por la Interactions API, en background y con sondeo (ver deepResearchService).
+ *
+ * Existen dos tiers: `deep-research-preview-04-2026` (rápido, ~1-3 $ por
+ * investigación) y `deep-research-max-preview-04-2026` (exhaustivo, ~3-7 $). Se
+ * usa el primero por decisión de producto — el caro queda descartado, pero se
+ * puede cambiar por env sin tocar código si algún día compensa.
+ *
+ * Lleva `preview` y fecha en el nombre, así que caduca: el botón «Probar conexión»
+ * de Ajustes es el sitio donde se nota antes de un paseo.
+ */
+export const GEMINI_RESEARCH_AGENT =
+  env('EXPO_PUBLIC_GEMINI_RESEARCH_AGENT') ?? 'deep-research-preview-04-2026';
+
 export const GEMINI_THINKING = {
   analyze: parseThinking(env('EXPO_PUBLIC_GEMINI_ANALYZE_THINKING')) ?? 'HIGH',
   interlocutor: parseThinking(env('EXPO_PUBLIC_GEMINI_INTERLOCUTOR_THINKING')) ?? 'LOW',

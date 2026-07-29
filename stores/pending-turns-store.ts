@@ -29,6 +29,23 @@ export type PendingTurn = {
   closingMode: boolean;
 };
 
+/**
+ * Investigacion profunda lanzada y todavia viva en el servidor. Se PERSISTE
+ * porque tarda minutos (el agente admite hasta una hora): si el paseo sigue, si
+ * la app se va a segundo plano o si muere, el sondeo se reanuda al volver. En
+ * memoria se perderia un informe ya pagado.
+ */
+export type ResearchJob = {
+  id: string;
+  createdAt: string;
+  /** id de la interaccion en la Interactions API. */
+  interactionId: string;
+  /** Encargo tal como se dijo, para el titulo si la sintesis falla. */
+  brief: string;
+  /** Carpeta a cuya biblioteca aterriza el informe. */
+  folderId: string | null;
+};
+
 export type ActiveSessionMark = {
   profile: AiProfileId;
   docId: string | null;
@@ -38,6 +55,7 @@ export type ActiveSessionMark = {
 type State = {
   pending: PendingTurn[];
   activeSession: ActiveSessionMark | null;
+  research: ResearchJob[];
   /**
    * Cierres de sesión («Corto») corriendo en background. NO se persiste: si la
    * app muere a mitad, el turno sigue en `pending` (se encola ANTES de arrancar),
@@ -52,6 +70,8 @@ type State = {
   clearSessionMark: () => void;
   beginClosingTurn: () => void;
   endClosingTurn: () => void;
+  addResearch: (job: Omit<ResearchJob, 'id' | 'createdAt'>) => void;
+  removeResearch: (id: string) => void;
 };
 
 function newId(): string {
@@ -63,6 +83,7 @@ export const usePendingTurnsStore = create<State>()(
     (set, get) => ({
       pending: [],
       activeSession: null,
+      research: [],
       closingInFlight: 0,
       addPending: (turn) => {
         const id = newId();
@@ -78,12 +99,25 @@ export const usePendingTurnsStore = create<State>()(
       clearSessionMark: () => set({ activeSession: null }),
       beginClosingTurn: () => set({ closingInFlight: get().closingInFlight + 1 }),
       endClosingTurn: () => set({ closingInFlight: Math.max(0, get().closingInFlight - 1) }),
+      addResearch: (job) =>
+        set({
+          research: [
+            ...get().research,
+            { ...job, id: newId(), createdAt: new Date().toISOString() },
+          ],
+        }),
+      removeResearch: (id) =>
+        set({ research: get().research.filter((r) => r.id !== id) }),
     }),
     {
       name: 'asimetrica-pending-turns',
       version: 1,
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ pending: s.pending, activeSession: s.activeSession }),
+      partialize: (s) => ({
+        pending: s.pending,
+        activeSession: s.activeSession,
+        research: s.research,
+      }),
     }
   )
 );
