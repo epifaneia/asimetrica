@@ -125,7 +125,7 @@ function speakWithSystemVoice(text: string, finish: (reason: TtsEndReason) => vo
   speechActive = true;
   try {
     Speech.speak(text, {
-      language: 'es-ES',
+      // Sin idioma fijado: la voz del sistema sigue la del dispositivo.
       rate: 1.0,
       onDone: () => {
         if (!speechActive) return; // parado manualmente: el caller ya gestionó el corte

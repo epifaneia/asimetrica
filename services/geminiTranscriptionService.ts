@@ -7,10 +7,15 @@ import { GEMINI_MODELS } from './geminiModels';
  * < 1 MB por minuto) caben de sobra en el límite inline (20 MB).
  */
 
-const STT_INSTRUCTION = `Transcribe el audio en español. Devuelve únicamente la transcripción literal, sin comentarios, sin etiquetas de hablante, sin marcas de tiempo. No corrijas muletillas ni reordenes frases (de eso se encarga el siguiente paso). Si no hay voz audible, responde con la cadena vacía.`;
+/**
+ * Sin idioma fijado (los modelos actuales lo detectan), pero SÍ diciendo
+ * explícitamente que no traduzca: sin esa frase, un modelo multimodal puede
+ * decidir devolver el texto en otro idioma en vez de transcribir lo que se dijo.
+ */
+const STT_INSTRUCTION = `Transcribe el audio en el idioma en que se habla, sin traducir. Devuelve únicamente la transcripción literal, sin comentarios, sin etiquetas de hablante, sin marcas de tiempo. No corrijas muletillas ni reordenes frases (de eso se encarga el siguiente paso). Si no hay voz audible, responde con la cadena vacía.`;
 
 /** Modo rápido: transcripción + sanitizado en UNA llamada (ahorra una ida y vuelta completa). */
-const STT_CLEAN_INSTRUCTION = `Transcribe el audio en español y devuelve el texto YA LIMPIO, en un solo paso:
+const STT_CLEAN_INSTRUCTION = `Transcribe el audio en el idioma en que se habla, sin traducir, y devuelve el texto YA LIMPIO, en un solo paso:
 - Corrige errores típicos de transcripción de voz.
 - Elimina muletillas y repeticiones vacías (eh, mmh, o sea repetido, vale vale…) sin borrar dudas o matiz intencional.
 - Arregla gramática y puntuación mínima para que sea legible.

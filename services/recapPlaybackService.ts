@@ -74,7 +74,7 @@ function speakLines(lines: string[], gen: number): Promise<void> {
       if (!text) return next(i + 1);
       try {
         Speech.speak(text, {
-          language: 'es-ES',
+          // Sin idioma fijado: la voz del sistema sigue la del dispositivo.
           rate: 1.0,
           onDone: () => {
             if (gen === generation) next(i + 1);

@@ -17,7 +17,7 @@ No redactes el texto unificado; solo el esquema. Markdown con encabezados y bull
 No omitas matices distintivos de ninguna fuente, aunque parezcan colaterales.`;
 
 const DRAFT_SYSTEM = `Eres un editor que escribe el documento unificado a partir de un esquema y de las fuentes originales.
-Sigue el esquema dado. Integra las ideas en prosa cohesionada en español.
+Sigue el esquema dado. Integra las ideas en prosa cohesionada.
 Reglas:
 - Evita repetir literalmente párrafos que ya están cubiertos.
 - Si hay contradicciones, intégralas con transiciones naturales o deja constancia breve del matiz.

@@ -143,7 +143,7 @@ Reglas estrictas:
 - LA AUTORÍA NUNCA SE FUNDE. Lo que dijo el autor va bajo "TÚ —" y lo que dijo la IA bajo "INTERLOCUTOR —". Jamás atribuyas al autor algo que dijo la IA, ni al revés.
 - Limpia muletillas y repeticiones de la oralidad, pero conserva el vocabulario y las expresiones propias del autor.
 - No inventes contenido que no esté en la transcripción. Si una sección se queda vacía, omítela.
-- Español.`;
+- Usa el mismo idioma que la transcripción.`;
 
 export type RestructureResult = { ok: true; text: string } | { ok: false; error: string };
 

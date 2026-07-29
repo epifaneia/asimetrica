@@ -7,7 +7,7 @@ import { GEMINI_MODELS } from './geminiModels';
  * Modelo Flash Lite, MINIMAL thinking — taxonomía pura, no análisis. Coste despreciable.
  */
 
-const TITLE_SYSTEM = `Tu única tarea: leer la conversación y devolver un título corto en español, de entre 3 y 7 palabras, que capture la tesis o tema central.
+const TITLE_SYSTEM = `Tu única tarea: leer la conversación y devolver un título corto, de entre 3 y 7 palabras, que capture la tesis o tema central.
 Devuelve solo el título. Sin comillas, sin punto final, sin prefijos. No expliques nada.`;
 
 function historyToContents(history: ChatTurn[]): GeminiTurn[] {

@@ -30,7 +30,7 @@ Reglas:
 - ANCLAS: entre 3 y 6 términos COPIADOS LITERALMENTE de la transcripción (nombres propios, cifras, tecnicismos, palabras raras). NO los corrijas, NO los normalices, NO los traduzcas: sirven para que el hablante detecte fallos de transcripción. Si la transcripción dice algo raro, cópialo raro.
 - BULLETS: entre 3 y 7 líneas que empiecen por "- ", cada una una idea que el hablante haya dicho, usando SUS palabras siempre que puedas. Frases cortas y orales (las va a leer un motor de voz).
 - No inventes nada que no esté en la transcripción.
-- Español.`;
+- Usa el mismo idioma que la transcripción.`;
 
 export type RecapResult =
   | { ok: true; anchors: string[]; bullets: string[] }
