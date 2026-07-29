@@ -8,10 +8,13 @@ import {
   EMBEDDING_DIMENSIONS,
   FULL_INJECT_MAX_CHARS,
   MAX_DOC_TEXT_CHARS,
+  SYNOPSIS_MAX_CHARS,
 } from '@/constants/library';
 import { useLibraryStore, type LibraryDoc, type LibraryDocKind } from '@/stores/library-store';
 
 import { embedDocumentChunks } from './geminiEmbeddingService';
+import { generateContent } from './geminiClient';
+import { GEMINI_MODELS } from './geminiModels';
 import { extractPdfText } from './pdfTextExtraction';
 
 /**
@@ -169,6 +172,41 @@ export async function readDocText(docId: string): Promise<string | null> {
 }
 
 // ---------------------------------------------------------------------------
+// Sinopsis
+// ---------------------------------------------------------------------------
+
+const SYNOPSIS_SYSTEM = `Recibes un documento y devuelves una sinopsis muy breve para que otro modelo sepa QUÉ HAY en este documento sin tener que leerlo entero.
+
+Di de qué trata, de qué tipo de texto se trata (obra narrativa, normas, manual, informe con fuentes, apuntes…) y qué contiene a grandes rasgos. Si el propio texto se presenta como reglas u obligaciones, dilo.
+
+Devuelve solo la sinopsis, en prosa seguida, sin encabezados ni viñetas. Como máximo unas cien palabras. Usa el idioma del documento.`;
+
+/**
+ * Sinopsis del documento: una llamada, una vez, cacheada para siempre.
+ * Best-effort a propósito — si falla, el documento sigue funcionando por
+ * retrieval y solo se pierde el conocerlo "de oídas".
+ */
+async function generateSynopsis(apiKey: string, text: string): Promise<string> {
+  // Con la cabeza y la cola basta para saber de qué va; mandar una novela entera
+  // para resumirla sería pagar por nada.
+  const sample =
+    text.length <= 24_000 ? text : `${text.slice(0, 16_000)}\n\n[…]\n\n${text.slice(-8_000)}`;
+  const res = await generateContent({
+    apiKey,
+    modelId: GEMINI_MODELS.sanitize,
+    systemInstruction: SYNOPSIS_SYSTEM,
+    contents: [{ role: 'user', parts: [{ text: sample }] }],
+    temperature: 0.2,
+    maxOutputTokens: 512,
+    thinkingLevel: 'MINIMAL',
+    stage: 'library-synopsis',
+    maxRetries: 1,
+  });
+  if (!res.ok) return '';
+  return res.text.trim().replace(/\s+/g, ' ').slice(0, SYNOPSIS_MAX_CHARS);
+}
+
+// ---------------------------------------------------------------------------
 // Alta + máquina de estados
 // ---------------------------------------------------------------------------
 
@@ -210,6 +248,49 @@ export async function addLibraryDocument(params: {
     kind,
     createdAt: new Date().toISOString(),
   });
+
+  void runIngestion(docId, params.apiKey);
+  return { ok: true, docId };
+}
+
+/**
+ * Alta de un documento a partir de texto YA generado por la app (hoy: el informe
+ * de investigación profunda). No hay archivo fuente ni extracción: el texto se
+ * escribe directo y la ingesta arranca en el troceado.
+ *
+ * Puede asignarse a una carpeta desde el principio — al contrario que los
+ * documentos que sube el autor, aquí la app sabe de dónde viene y para qué
+ * carpeta es, así que preguntar sería fricción sin motivo.
+ */
+export async function addLibraryDocumentFromText(params: {
+  apiKey: string;
+  title: string;
+  text: string;
+  folderIds?: string[];
+}): Promise<{ ok: true; docId: string } | { ok: false; error: string }> {
+  const text = params.text.trim();
+  if (!text) return { ok: false, error: 'Texto vacío.' };
+
+  const docId = Crypto.randomUUID();
+  const dir = libraryDocDir(docId);
+  try {
+    await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+    await FileSystem.writeAsStringAsync(`${dir}text.txt`, text);
+  } catch (e) {
+    return { ok: false, error: `No se pudo guardar el documento: ${e instanceof Error ? e.message : e}` };
+  }
+
+  const store = useLibraryStore.getState();
+  store.addDoc({
+    id: docId,
+    title: params.title.slice(0, 200) || 'Investigación',
+    sourceName: 'generado por la app',
+    kind: 'md',
+    createdAt: new Date().toISOString(),
+  });
+  // El texto ya está escrito: la extracción no aplica, se entra por el troceado.
+  store.patchDoc(docId, { status: 'troceando', chars: text.length });
+  if (params.folderIds?.length) store.setDocFolders(docId, params.folderIds);
 
   void runIngestion(docId, params.apiKey);
   return { ok: true, docId };
@@ -294,6 +375,14 @@ export async function runIngestion(docId: string, apiKey: string): Promise<void>
         patch({ status: 'error', errorMessage: 'Texto extraído no encontrado.' });
         return;
       }
+
+      // Sinopsis: una vez por documento, y solo si aún no la tiene (un reintento
+      // no la repaga). Best-effort: si falla, seguimos sin ella.
+      if (!doc.synopsis) {
+        const synopsis = await generateSynopsis(apiKey, text);
+        if (synopsis) patch({ synopsis });
+      }
+
       // Documento pequeño → inyección completa, sin chunks ni embeddings: LISTO.
       if (text.length <= FULL_INJECT_MAX_CHARS) {
         patch({ status: 'listo', nChunks: 0, embeddedChunks: 0 });

@@ -31,6 +31,22 @@ export const EMBEDDING_BATCH_SIZE = 64;
 // Inyección al analista (camino caliente del paseo)
 // ---------------------------------------------------------------------------
 
+/**
+ * SINOPSIS: se genera una vez por documento en la ingesta y se inyecta SIEMPRE,
+ * pase lo que pase con el retrieval.
+ *
+ * No es solo para que funcione «resúmemelo» (una pregunta sobre el documento
+ * entero no se parece a ningún fragmento concreto, así que el criterio de margen
+ * la deja en cero). El arreglo de fondo es otro: sin sinopsis, cuando el retrieval
+ * no recupera nada el modelo NO SABE NI QUE EL DOCUMENTO EXISTE — no puede decir
+ * «eso no está en tu material» porque no sabe qué material hay.
+ *
+ * Y es diez veces más barato que inyectar documentos enteros: tres sinopsis son
+ * ~600 tokens por turno frente a ~7.500 de tres documentos completos. Los
+ * embeddings siguen haciendo el trabajo pesado.
+ */
+export const SYNOPSIS_MAX_CHARS = 800;
+
 /** Docs con ≤ este nº de caracteres se inyectan enteros (sin retrieval). */
 export const FULL_INJECT_MAX_CHARS = 8_000;
 /** Presupuesto total de inyección completa por carpeta; el exceso pasa a retrieval. */

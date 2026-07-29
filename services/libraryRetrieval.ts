@@ -103,6 +103,12 @@ export async function buildLibraryContext(params: {
   const active = getActiveDocsForFolder(useLibraryStore.getState().docs, folderId);
   if (active.length === 0) return EMPTY;
 
+  // Sinopsis de TODOS los activos, sea cual sea su tamaño y pase lo que pase con
+  // el retrieval. Es lo que hace que el modelo conozca su biblioteca.
+  const synopses = active
+    .filter((d) => d.synopsis.trim())
+    .map((d) => ({ title: d.title, synopsis: d.synopsis.trim() }));
+
   // --- Documentos pequeños: completos, hasta agotar presupuesto ---------------
   const fullDocs: { title: string; chars: number }[] = [];
   const skippedFullDocs: string[] = [];
@@ -182,21 +188,40 @@ export async function buildLibraryContext(params: {
     }
   }
 
-  if (fullTexts.length === 0 && chunks.length === 0) {
-    logContext({ fullDocs, chunks, skippedFullDocs }, margin);
+  if (fullTexts.length === 0 && chunks.length === 0 && synopses.length === 0) {
+    logContext({ fullDocs, chunks, skippedFullDocs, synopses: synopses.length }, margin);
     return { ...EMPTY, skippedFullDocs };
   }
 
   // --- Bloque para el system del analista -------------------------------------
+  /**
+   * El marco dice el HECHO estructural y no afirma qué son los documentos. La
+   * versión anterior los declaraba «canon vinculante: su obra, su esqueleto, sus
+   * normas», y eso mentía en cuanto entraba algo que no encajaba (un informe de
+   * internet, un manual ajeno, un contrato) — con el riesgo de tratar hallazgos
+   * externos como si fueran la ley del autor. Cada documento declara su propia
+   * autoridad por su contenido: un texto que empieza «Normas de estilo: frases
+   * cortas» se lee como norma, y uno que dice «según tal medio, el 29 de julio…»
+   * se lee como hallazgo. El modelo distingue eso sin que nadie lo etiquete.
+   */
   const sections: string[] = [
-    `=== JAULA: OBRA DEL AUTOR ===
-Lo que sigue son documentos que el autor ha fijado como CANON VINCULANTE para esta carpeta: su obra, su esqueleto, sus normas. No son sugerencias.
+    `=== BIBLIOTECA DE ESTA CARPETA ===
+El autor ha puesto estos documentos en la biblioteca de la carpeta en la que está trabajando. Tenlos en cuenta y responde sobre ellos cuando venga al caso.
 
 Reglas:
-- Respeta el canon. Si la aportación de hoy CONTRADICE algo del canon, SEÑÁLALO explícitamente: esa tensión es información valiosa para el autor y no te toca a ti resolverla en silencio.
-- Cita el canon cuando te apoyes en él ("en tu capítulo tal dices…"), para que el autor sepa de dónde viene lo que le cuentas.`,
+- Respeta lo que cada documento ES: si un texto se presenta como norma u obligación, cúmplelo; si es material o hallazgos, úsalo como material.
+- Si la aportación de hoy CONTRADICE algo de la biblioteca, SEÑÁLALO explícitamente: esa tensión es información valiosa para el autor y no te toca a ti resolverla en silencio.
+- Cita de dónde sacas lo que cuentas ("en tu capítulo tal dices…", "según el informe tal…"), para que el autor pueda distinguir lo suyo de lo ajeno.`,
   ];
 
+  // Las sinopsis van SIEMPRE, incluso cuando el retrieval no recupera nada: sin
+  // ellas el modelo no sabe ni qué documentos existen, y no puede decir «eso no
+  // está en tu material» porque no sabe qué material hay.
+  if (synopses.length > 0) {
+    sections.push(
+      `--- QUÉ HAY EN LA BIBLIOTECA ---\n${synopses.map((s) => `[${s.title}] ${s.synopsis}`).join('\n\n')}`
+    );
+  }
   if (fullTexts.length > 0) {
     sections.push(`--- DOCUMENTOS COMPLETOS ---\n${fullTexts.join('\n\n')}`);
   }
@@ -212,7 +237,7 @@ ${chunks
   }
 
   const block = sections.join('\n\n');
-  logContext({ fullDocs, chunks, skippedFullDocs }, margin);
+  logContext({ fullDocs, chunks, skippedFullDocs, synopses: synopses.length }, margin);
   return { block, fullDocs, chunks, skippedFullDocs };
 }
 
@@ -220,8 +245,12 @@ ${chunks
  * Traza en Diagnóstico qué entró en la jaula. Para el autor es la diferencia entre
  * magia y sospecha; para afinar k y umbral, la única herramienta que hay.
  */
-function logContext(ctx: Omit<LibraryContext, 'block'>, margin: number | null): void {
+function logContext(
+  ctx: Omit<LibraryContext, 'block'> & { synopses?: number },
+  margin: number | null
+): void {
   const parts: string[] = [];
+  if (ctx.synopses) parts.push(`${ctx.synopses} sinopsis`);
   if (margin !== null) {
     // El margen sobre la mediana es LA cifra para afinar RETRIEVAL_MIN_MARGIN con
     // obra real: si turnos claramente sobre la obra salen con margen bajo, hay que

@@ -40,6 +40,12 @@ export type LibraryDoc = {
   nChunks: number;
   /** Nº de chunks ya embebidos (progreso de la fase 'embebiendo' y punto de reanudación). */
   embeddedChunks: number;
+  /**
+   * Sinopsis corta generada en la ingesta. Se inyecta SIEMPRE, incluso cuando el
+   * retrieval no recupera nada: es lo que hace que el modelo sepa qué hay en la
+   * biblioteca. Vacía si su generación falló (degrada sin romper nada).
+   */
+  synopsis: string;
   /** Carpetas donde este documento actúa. Vacío = inactivo. */
   folderIds: string[];
   createdAt: string;
@@ -47,7 +53,7 @@ export type LibraryDoc = {
 
 type LibraryState = {
   docs: LibraryDoc[];
-  addDoc: (doc: Omit<LibraryDoc, 'status' | 'errorMessage' | 'chars' | 'nChunks' | 'embeddedChunks' | 'folderIds'>) => void;
+  addDoc: (doc: Omit<LibraryDoc, 'status' | 'errorMessage' | 'chars' | 'nChunks' | 'embeddedChunks' | 'folderIds' | 'synopsis'>) => void;
   patchDoc: (id: string, patch: Partial<Omit<LibraryDoc, 'id'>>) => void;
   removeDoc: (id: string) => void;
   setDocFolders: (id: string, folderIds: string[]) => void;
@@ -70,6 +76,7 @@ export const useLibraryStore = create<LibraryState>()(
               chars: 0,
               nChunks: 0,
               embeddedChunks: 0,
+              synopsis: '',
               folderIds: [],
             },
           ],

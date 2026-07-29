@@ -29,8 +29,8 @@ Requisitos:
  * el autor quiera definirse.
  */
 export const DEFAULT_CONVERSADOR_DISPLAY_NAME: Record<AiProfileId, string> = {
-  creativo: 'Apertura',
-  auditor: 'Cierre',
+  creativo: 'Siembra',
+  auditor: 'Poda',
   sistemico: 'Custom',
   destilador: 'Investigación',
 };

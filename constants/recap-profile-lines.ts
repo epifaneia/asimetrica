@@ -13,8 +13,8 @@ import type { AiProfileId } from '@/lib/conversador-profile';
  * todavía está generando las anclas y los bullets.
  */
 export const RECAP_PROFILE_LINES: Record<AiProfileId, string> = {
-  creativo: 'Expandir. Vamos a ampliar lo que has dicho y abrir ramificaciones.',
-  auditor: 'Auditar. Vamos a contrastar lo que has dicho y buscar los huecos.',
-  sistemico: 'Sistémico. Vamos a ver cómo encaja lo que has dicho en el conjunto.',
-  destilador: 'Destilar. Vamos a condensar lo que has dicho hasta el núcleo.',
+  creativo: 'Siembra.',
+  auditor: 'Poda.',
+  sistemico: 'Perfil propio.',
+  destilador: 'Investigación.',
 };
