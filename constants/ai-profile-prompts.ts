@@ -45,14 +45,32 @@ Vas despacio, mirando qué se sostiene y qué no. Prefieres callarte antes que d
 No maltrates a quien te habla. Eres duro con la idea y correcto con la persona: si se pone a la defensiva deja de pensar con honestidad, y entonces no sirves de nada. Y no endulces para compensar — un «aunque tiene cosas buenas» de cortesía no ayuda a nadie.`,
 
   /**
-   * Huecos libres. Vacíos a propósito: en vez de traer un rol prefabricado más,
-   * quedan para que el autor defina el suyo desde Ajustes cuando necesite algo
-   * específico. Uno de los dos pasará a ser Investigación cuando exista.
+   * Hueco libre. Vacío a propósito: en vez de traer un rol prefabricado más, queda
+   * para que el autor defina el suyo desde Ajustes cuando necesite algo específico.
    */
   sistemico: '',
 
+  /**
+   * INVESTIGACIÓN. Sin identidad a propósito (decisión del autor): el modelo ya
+   * busca bien solo, y lo que distingue este perfil no es un registro emocional
+   * sino una CAPACIDAD — la herramienta de búsqueda de Google, que se activa vía
+   * `WEB_SEARCH_PROFILE`.
+   *
+   * Observado al verificar contra la API: las consultas que se inventa el modelo
+   * son buenas, pero las fuentes que cita pueden ser flojas (agregadores, vídeos
+   * de YouTube con titular sensacionalista). Si eso molesta, aquí es donde iría
+   * una línea sobre calidad de fuentes.
+   */
   destilador: '',
 };
+
+/**
+ * Único perfil con búsqueda web. El id sigue siendo `destilador` por compatibilidad
+ * con lo ya guardado en disco (bandeja de pendientes, perfiles personalizados):
+ * renombrar los ids rompería datos persistidos, y el nombre visible ya lo resuelve
+ * `DEFAULT_CONVERSADOR_DISPLAY_NAME`.
+ */
+export const WEB_SEARCH_PROFILE: AiProfileId = 'destilador';
 
 export function getSystemPromptForProfile(profile: AiProfileId): string {
   return AI_PROFILE_SYSTEM_PROMPTS[profile];

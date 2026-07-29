@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
+import { WEB_SEARCH_PROFILE } from '@/constants/ai-profile-prompts';
 import { resolveConversadorSystemPrompt } from '@/lib/conversador-profile';
 import { runGeminiDissertationPipeline } from '@/services/geminiPipelineService';
 import { buildLibraryContext } from '@/services/libraryRetrieval';
@@ -90,6 +91,7 @@ async function processOne(apiKey: string, turn: PendingTurn): Promise<ProcessOne
     closingMode: turn.closingMode,
     fastMode,
     libraryBlock: libCtx.block,
+    useWebSearch: turn.profile === WEB_SEARCH_PROFILE,
   });
   if (!result.ok) return { ok: false, docId: null };
 

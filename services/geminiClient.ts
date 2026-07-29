@@ -32,6 +32,13 @@ export type GeminiCallParams = {
   temperature?: number;
   maxOutputTokens?: number;
   thinkingLevel?: ThinkingLevel;
+  /**
+   * Herramientas para el modelo. Hoy solo se usa `[{ google_search: {} }]` para el
+   * perfil de investigación. Verificado contra la API: añade ~11 s en Pro y ~6 s
+   * en Flash, y devuelve `groundingMetadata` con las búsquedas que hizo y las
+   * fuentes que citó (se registran en Diagnóstico).
+   */
+  tools?: Record<string, unknown>[];
   /** Etiqueta para el log de diagnóstico (p. ej. 'sanitize', 'analyze', 'title-gen'). */
   stage?: string;
   /** Timeout por intento, en ms. Default 60 s (90 s para stages con audio). */
@@ -53,6 +60,11 @@ type GeminiResponse = {
   candidates?: Array<{
     finishReason?: string;
     content?: { parts?: Array<{ text?: string }> };
+    /** Presente cuando el modelo usó la herramienta de búsqueda. */
+    groundingMetadata?: {
+      webSearchQueries?: string[];
+      groundingChunks?: Array<{ web?: { title?: string; uri?: string } }>;
+    };
   }>;
   usageMetadata?: {
     promptTokenCount?: number;
@@ -87,6 +99,7 @@ export async function generateContent(params: GeminiCallParams): Promise<GeminiR
     temperature = 0.7,
     maxOutputTokens = 8192,
     thinkingLevel,
+    tools,
     stage,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxRetries = 1,
@@ -131,6 +144,9 @@ export async function generateContent(params: GeminiCallParams): Promise<GeminiR
   if (systemInstruction?.trim()) {
     body.systemInstruction = { parts: [{ text: systemInstruction }] };
   }
+  if (tools?.length) {
+    body.tools = tools;
+  }
   const payload = JSON.stringify(body);
 
   let lastError = 'Error desconocido.';
@@ -165,7 +181,18 @@ export async function generateContent(params: GeminiCallParams): Promise<GeminiR
         continue; // respuesta vacía esporádica → merece reintento
       }
       const usage = data.usageMetadata;
-      log(true, undefined, {
+      // Si hubo búsqueda web, se registran las consultas y las fuentes: el autor
+      // tiene que poder ver de dónde salió lo que le están contando.
+      const gm = candidate?.groundingMetadata;
+      let grounding: string | undefined;
+      if (gm) {
+        const queries = (gm.webSearchQueries ?? []).slice(0, 4).join(' · ');
+        const sources = [
+          ...new Set((gm.groundingChunks ?? []).map((c) => c.web?.title).filter(Boolean)),
+        ].slice(0, 6);
+        grounding = `buscó: ${queries || '—'} | fuentes: ${sources.join(', ') || 'ninguna'}`;
+      }
+      log(true, grounding, {
         tokensIn: usage?.promptTokenCount,
         tokensOut: (usage?.candidatesTokenCount ?? 0) + (usage?.thoughtsTokenCount ?? 0) || undefined,
         retries: attempt || undefined,

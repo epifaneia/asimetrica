@@ -32,7 +32,7 @@ export const DEFAULT_CONVERSADOR_DISPLAY_NAME: Record<AiProfileId, string> = {
   creativo: 'Apertura',
   auditor: 'Cierre',
   sistemico: 'Custom',
-  destilador: 'Custom 2',
+  destilador: 'Investigación',
 };
 
 export const DEFAULT_CONVERSADOR_DOCK_ICON: Record<AiProfileId, string> = {

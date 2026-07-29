@@ -3,6 +3,7 @@ import {
   AMBIENT_LEVEL_UNDER_VOICE,
   AMBIENT_LEVEL_WAITING,
 } from '@/constants/ambient-asset';
+import { WEB_SEARCH_PROFILE } from '@/constants/ai-profile-prompts';
 import { DOCK_FAB_SIZE, DOCK_VERTICAL_PADDING } from '@/constants/dock-metrics';
 import { ensureAmbientBed, setAmbientLevel } from '@/services/ambientLoopService';
 import { buildLibraryContext, clearLibraryCache } from '@/services/libraryRetrieval';
@@ -455,6 +456,7 @@ export function GlobalVoiceChrome() {
         closingMode,
         fastMode,
         libraryBlock: libCtx.block,
+        useWebSearch: profile === WEB_SEARCH_PROFILE,
         onStage: (stage) => setBusyPhase(stage),
         /**
          * Arranca la síntesis del primer trozo en cuanto hay frases suficientes,

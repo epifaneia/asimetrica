@@ -157,6 +157,13 @@ export type GeminiPipelineParams = {
    * Vacío o ausente = pipeline idéntico al de antes de existir la biblioteca.
    */
   libraryBlock?: string;
+  /**
+   * Da al analista la herramienta de búsqueda de Google. Solo el analista: el
+   * interlocutor traduce a registro oral, no necesita saber nada nuevo.
+   * Verificado: añade ~11 s en Pro. Por eso no está activo en los perfiles
+   * conversacionales, solo en el de investigación.
+   */
+  useWebSearch?: boolean;
   /** Notifica cada paso antes de su llamada HTTP. */
   onStage?: (stage: GeminiPipelineStage) => void;
   /**
@@ -181,6 +188,7 @@ export async function runGeminiDissertationPipeline(
     closingMode = false,
     fastMode = false,
     libraryBlock,
+    useWebSearch = false,
     onStage,
     onSanitizedUser,
     onInterlocutorSentence,
@@ -246,7 +254,8 @@ export async function runGeminiDissertationPipeline(
     // viven las ideas. El cap de 3072 del modo rápido truncaba pensamiento.
     maxOutputTokens: 8192,
     thinkingLevel: fastMode ? 'MEDIUM' : GEMINI_THINKING.analyze,
-    stage: fastMode ? 'analyze-medium' : 'analyze',
+    tools: useWebSearch ? [{ google_search: {} }] : undefined,
+    stage: useWebSearch ? 'analyze-search' : fastMode ? 'analyze-medium' : 'analyze',
   });
   if (!s2.ok) {
     return { ok: false, error: s2.error, stage: 'analyze' };
