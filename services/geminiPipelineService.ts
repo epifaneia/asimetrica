@@ -36,10 +36,32 @@ Reglas estrictas:
 - No respondas al contenido, no opines, no amplíes ideas, no hagas preguntas al usuario.
 - Devuelve solo el texto limpio, sin comentarios ni prefijos.`;
 
-const ANALYST_LAYER = `Arriba va tu identidad de perfil cognitivo. Tu salida en ESTE paso es solo para consumo interno (pasará a otra capa).
-Produce un análisis estructurado y profundo en español. Puedes usar markdown con encabezados y listas para organizar el pensamiento.
-Sé extenso donde aporte valor: matices, riesgos, supuestos, contraargumentos, implicaciones y tensiones abiertas.
-No escribas el monólogo hablado final para el usuario; no te dirijas en segunda persona como si fueras la voz de la app. Enfócate en el razonamiento analítico.`;
+/**
+ * Capa común del analista: solo FORMATO e idioma. El registro lo lleva la
+ * identidad del perfil, y son responsabilidades que no se solapan — por eso no
+ * hace falta declarar jerarquía entre las dos.
+ *
+ * Lo que se retiró y por qué:
+ *   - «Puedes usar markdown con encabezados y listas»: la estructura tipográfica
+ *     vive en la disposición del texto, y la voz no tiene disposición. Al
+ *     pronunciarse desaparece y el oyente deja de saber dónde empieza cada cosa.
+ *     Los ordinales dichos en prosa guardan la estructura EN LAS PALABRAS y
+ *     sobreviven al viaje intactos.
+ *   - «Sé extenso: matices, RIESGOS, supuestos, CONTRAARGUMENTOS…»: esto exigía
+ *     crítica a los CUATRO perfiles, así que el de abrir evaluaba por decreto
+ *     aunque su identidad dijera lo contrario (comprobado: metía «riesgo» y
+ *     «problema» en una prueba real). Era la causa de que los perfiles se
+ *     difuminaran entre sí.
+ *   - «en español»: fijar el idioma aquí dejaba la app inservible para quien no
+ *     lo hable.
+ *
+ * Se dice el motivo y no solo la regla: con el motivo, el modelo deduce solo que
+ * tampoco valen las tablas, ni los esquemas, ni las flechas. Con la regla a secas
+ * cumple la letra y se inventa otro formato invisible.
+ */
+const ANALYST_LAYER = `Esto que escribas se va a leer en voz alta. Si te apetece estructurar en listas o tablas, recuerda que no se ven; los ordinales dichos en prosa («hay tres tensiones aquí; la primera…») sí se oyen.
+
+Escribe en el idioma del usuario, y no le hables a él: esto lo recoge otra capa antes de llegar a la persona.`;
 
 /**
  * PRINCIPIO: el modo cambia cuánto PIENSA el analista (thinking level), nunca
@@ -63,7 +85,9 @@ No escribas el monólogo hablado final para el usuario; no te dirijas en segunda
 export const INTERLOCUTOR_TTS_FORMAT_RULE = `IMPORTANTE: Tu respuesta será leída por un motor de texto a voz (TTS). Debes responder usando exclusivamente prosa natural y fluida. ESTÁ TERMINANTEMENTE PROHIBIDO usar listas, viñetas (bullet points), emojis, asteriscos, palabras en negrita o caracteres especiales de Markdown. Usa puntos y comas para marcar las pausas respiratorias.
 
 DENSIDAD ORAL: cada segundo que hablas es un segundo que el usuario espera escuchando, así que no gastes ninguno en relleno. PROHIBIDO: preámbulos y frases de arranque ("Vamos a ver…", "Es interesante que…"), recapitular o parafrasear lo que el usuario acaba de decir (ya lo sabe), meta-comentarios sobre el análisis o sobre ti mismo, y cierres de cortesía. Entra directo en la primera idea.
-Esto NO significa decir menos: TODAS las ideas de valor del análisis deben aparecer. Se recorta la grasa, nunca el contenido.`;
+Esto NO significa decir menos: TODAS las ideas de valor del análisis deben aparecer. Se recorta la grasa, nunca el contenido.
+
+ORDINALES SÍ: puedes decir "la primera", "la segunda", "por un lado / por otro" cuando ayuden a seguirte el hilo — eso se escucha bien y le da al oyente dónde agarrarse. Lo que no haces es recitar como un informe: nada de "punto uno", "apartado dos" ni leer una lista en voz alta.`;
 
 /** Capa de cierre que transforma cualquier respuesta en un latido final del perfil. */
 export const CORTO_CLOSING_LAYER = `El usuario ha pulsado «Corto»: la conversación termina ahora.

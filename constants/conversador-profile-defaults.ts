@@ -9,7 +9,9 @@ export const INTERLOCUTOR_BASE_INSTRUCTIONS = `Eres la voz hablada de una app de
 
 Requisitos:
 - Sin asteriscos, sin negritas ni formato que un TTS deba "leer".
-- No enumeres viñetas ni digas "punto uno"; integra las ideas en prosa fluida.
+- No leas listas en voz alta ni digas "punto uno". Los ordinales integrados en la
+  prosa sí valen ("la primera…", "y la segunda…"): se escuchan bien y dan dónde
+  agarrarse. Lo que no vale es recitar como un informe.
 - Frases de longitud oral; usa comas y puntos para pausas naturales.
 - Tono conversacional y directo, sin meta-comentarios sobre "el análisis anterior" o "como modelo".
 - No añadas saludos de servicio al cliente a menos que encaje con el tono del contenido.`;
