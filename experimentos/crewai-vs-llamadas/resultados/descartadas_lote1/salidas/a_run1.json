@@ -1,0 +1,133 @@
+{
+  "resultados": [
+    {
+      "id": "R01",
+      "veredicto": "cumple",
+      "cita": "El R2 gestiona 16 zonas de riego independientes en su configuración estándar, sin módulos adicionales.",
+      "seccion": "2.2",
+      "seccion_modelo": "2.2",
+      "aprobado": true,
+      "iteraciones": 1,
+      "comentario": "",
+      "flags": []
+    },
+    {
+      "id": "R02",
+      "veredicto": "abierto",
+      "cita": "",
+      "seccion": null,
+      "seccion_modelo": "",
+      "aprobado": false,
+      "iteraciones": 3,
+      "comentario": "La especificación no trata este requisito, por lo que no se puede determinar si el controlador cumple con la duración mínima de funcionamiento con batería durante un corte de red eléctrica.",
+      "flags": [
+        "no_aprobado_tras_max_iteraciones"
+      ]
+    },
+    {
+      "id": "R03",
+      "veredicto": "no_cumple",
+      "cita": "",
+      "seccion": null,
+      "seccion_modelo": "",
+      "aprobado": false,
+      "iteraciones": 3,
+      "comentario": "La especificación no menciona explícitamente el rango de temperatura de funcionamiento entre -20°C y +60°C. Se establece un rango más estrecho en otro apartado, pero no se refiere al límite inferior de -20°C.",
+      "flags": [
+        "no_aprobado_tras_max_iteraciones"
+      ]
+    },
+    {
+      "id": "R04",
+      "veredicto": "no_cumple",
+      "cita": "El R2 no admite sensores de lluvia de otros fabricantes: la entrada SEN1 solo reconoce el sensor HV-Pluvio, que se identifica mediante un protocolo propio.",
+      "seccion": "6.1",
+      "seccion_modelo": "6.1",
+      "aprobado": false,
+      "iteraciones": 3,
+      "comentario": "La especificación indica claramente que el controlador no admite sensores de lluvia de otros fabricantes, por lo que falta evidencia de compatibilidad con sensores de terceros.",
+      "flags": [
+        "no_aprobado_tras_max_iteraciones"
+      ]
+    },
+    {
+      "id": "R05",
+      "veredicto": "abierto",
+      "cita": "",
+      "seccion": null,
+      "seccion_modelo": "",
+      "aprobado": false,
+      "iteraciones": 3,
+      "comentario": "La especificación no menciona nada sobre la integración con asistentes de voz o el lanzamiento de riegos mediante órdenes habladas.",
+      "flags": [
+        "no_aprobado_tras_max_iteraciones"
+      ]
+    },
+    {
+      "id": "R06",
+      "veredicto": "abierto",
+      "cita": "",
+      "seccion": null,
+      "seccion_modelo": "",
+      "aprobado": false,
+      "iteraciones": 3,
+      "comentario": "No se encuentra ninguna cláusula que indique el período mínimo de garantía para las piezas de repuesto.",
+      "flags": [
+        "no_aprobado_tras_max_iteraciones"
+      ]
+    },
+    {
+      "id": "R07",
+      "veredicto": "cumple",
+      "cita": "El R2 incorpora Wi-Fi 802.11 b/g/n en la banda de 2,4 GHz.",
+      "seccion": "7.1",
+      "seccion_modelo": "7.1",
+      "aprobado": true,
+      "iteraciones": 1,
+      "comentario": "",
+      "flags": []
+    },
+    {
+      "id": "R08",
+      "veredicto": "cumple",
+      "cita": "Toda la programación puede realizarse desde el teclado frontal sin conexión a internet; los programas se ejecutan localmente aunque se pierda la conexión.",
+      "seccion": "5.2",
+      "seccion_modelo": "5.2",
+      "aprobado": true,
+      "iteraciones": 1,
+      "comentario": "",
+      "flags": []
+    },
+    {
+      "id": "R09",
+      "veredicto": "abierto",
+      "cita": "",
+      "seccion": null,
+      "seccion_modelo": "",
+      "aprobado": false,
+      "iteraciones": 3,
+      "comentario": "La especificación no trata este requisito, lo que implica que falta información crucial para determinar si se cumple o no.",
+      "flags": [
+        "no_aprobado_tras_max_iteraciones"
+      ]
+    },
+    {
+      "id": "R10",
+      "veredicto": "abierto",
+      "cita": "",
+      "seccion": null,
+      "seccion_modelo": "",
+      "aprobado": false,
+      "iteraciones": 3,
+      "comentario": "La especificación no trata el requisito de la tensión de 230 V CA, frecuencia de 50 Hz ni la necesidad de un transformador externo. Es necesario que se incluyan estas especificaciones para cumplir con el requisito.",
+      "flags": [
+        "no_aprobado_tras_max_iteraciones"
+      ]
+    }
+  ],
+  "errores": [],
+  "reintentos": 14,
+  "iteraciones_flow": 3,
+  "variante": "A",
+  "wall_s": 584.55
+}

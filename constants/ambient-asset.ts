@@ -6,10 +6,9 @@
  * Asset OPCIONAL e INTERCAMBIABLE. Mientras valga `null` simplemente no suena
  * nada y todo lo demás (recap, skip, pisada de la respuesta) funciona igual.
  *
- * OJO LICENCIAS: el mp3 actual es música con derechos (prueba personal) y está
- * EXCLUIDO de git (.gitignore). NO puede viajar a una build comercial. En un
- * clon fresco sin el archivo, Metro fallará en este require: o repones el mp3
- * o vuelves a dejar la constante en `null`.
+ * Licencia: pista generada con DaVinci AI, uso personal y creativo (ver
+ * CREDITS.md). Para una versión comercial hay que cambiarla por una con licencia
+ * comercial explícita, o dejar la constante en `null`.
  */
 export const AMBIENT_LOOP_SOURCE: number | null = require('../assets/sounds/ambient_loop.mp3');
 

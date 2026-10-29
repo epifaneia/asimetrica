@@ -1,0 +1,7 @@
+{"modelo": "qwen2.5:7b", "modelo_embed": "mxbai-embed-large", "temperatura": 0.0, "seed": 42, "num_ctx": 4096, "top_k": 4, "crewai": "1.15.33", "ollama": "0.32.5", "python": "3.13.12", "hardware": "GPU NVIDIA GeForce RTX 2060, 6144 MiB; Ollama carga 82% de qwen2.5:7b en VRAM (resto en CPU); AMD64 Family 23 Model 113 Stepping 0, AuthenticAMD"}
+A run1: aciertos 7/10 · llm 96 · emb 48 · in 80680 out 8056 · 584.55 s · exit 0
+B run1: aciertos 9/10 · llm 10 · emb 0 · in 7071 out 1160 · 84.24 s · exit 0
+A run2: aciertos 5/10 · llm 96 · emb 48 · in 80116 out 7619 · 590.63 s · exit 0
+B run2: aciertos 9/10 · llm 10 · emb 0 · in 7071 out 1160 · 78.58 s · exit 0
+A run3: aciertos 6/10 · llm 96 · emb 48 · in 80530 out 7907 · 562.35 s · exit 0
+B run3: aciertos 9/10 · llm 10 · emb 0 · in 7071 out 1160 · 77.77 s · exit 0

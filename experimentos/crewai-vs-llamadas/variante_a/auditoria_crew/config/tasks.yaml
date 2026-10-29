@@ -1,0 +1,52 @@
+# INPUT PLACEHOLDERS: deben existir en kickoff(inputs=...) en main.py
+#   {req_id} {req_texto} {orchestrator_feedback}
+# Los criterios de dictamen son los MISMOS, palabra por palabra, que el prompt de la variante B.
+
+analizar_requisito:
+  description: >
+    Requisito {req_id}: «{req_texto}»
+
+    Descompón el requisito: qué característica del producto exige, qué condición
+    concreta debe cumplirse (cifras con sus unidades, rangos, mínimos o máximos,
+    negaciones) y qué tendría que decir la especificación para cumplirlo y para
+    incumplirlo.
+  expected_output: >
+    Tres líneas: «Característica: ...», «Condición exigida: ...»,
+    «Qué buscar en la especificación: ...».
+  agent: analista_requisitos
+
+buscar_evidencia:
+  description: >
+    Requisito {req_id}: «{req_texto}»
+
+    Busca en la especificación técnica del RiegoNet R2 las frases que deciden este
+    requisito. Copia cada frase LITERALMENTE, palabra por palabra, e indica el número
+    de apartado (por ejemplo, 3.3) donde aparece. Si la especificación no trata lo que
+    pide el requisito, escribe exactamente: «La especificación no trata este requisito».
+
+    Indicaciones del auditor jefe para esta iteración:
+    {orchestrator_feedback}
+  expected_output: >
+    Una lista de frases literales de la especificación, cada una con su apartado
+    («Apartado N.M: "frase"»), o la línea «La especificación no trata este requisito».
+  agent: lector_especificacion
+
+dictaminar:
+  description: >
+    Requisito {req_id}: «{req_texto}»
+
+    Con el análisis del requisito y la evidencia encontrada, emite el dictamen.
+    Reglas:
+    - "cumple": un fragmento afirma algo que satisface el requisito por completo (si hay cifras, compáralas: el valor de la especificación debe alcanzar el exigido).
+    - "no_cumple": un fragmento afirma algo que contradice el requisito: una cifra que no llega, un rango más estrecho, una negación ("no admite", "no dispone").
+    - "abierto": ningún fragmento trata lo que pide el requisito. No deduzcas a partir de temas parecidos.
+    En "cita" copia LITERALMENTE la frase decisiva de la especificación (vacío si es "abierto").
+    En "seccion" escribe el número de apartado de esa frase (por ejemplo, "3.3"; vacío si es "abierto").
+    En "aprobado" pon true si la evidencia basta para firmar el dictamen, o false si
+    el lector debe repetir la búsqueda; en ese caso explica en "comentario" qué falta.
+
+    Indicaciones de la iteración anterior:
+    {orchestrator_feedback}
+  expected_output: >
+    El dictamen estructurado: veredicto, cita, seccion, aprobado y comentario.
+  agent: orquestador

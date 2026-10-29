@@ -1,0 +1,133 @@
+{
+  "resultados": [
+    {
+      "id": "R01",
+      "veredicto": "cumple",
+      "cita": "El R2 gestiona 16 zonas de riego independientes en su configuración estándar, sin módulos adicionales.",
+      "seccion": "2.2",
+      "seccion_modelo": "2.2",
+      "aprobado": true,
+      "iteraciones": 1,
+      "comentario": "",
+      "flags": []
+    },
+    {
+      "id": "R02",
+      "veredicto": "abierto",
+      "cita": "",
+      "seccion": null,
+      "seccion_modelo": "",
+      "aprobado": false,
+      "iteraciones": 3,
+      "comentario": "La especificación no menciona claramente que el controlador RiegoNet R2 continuará operando los riegos programados durante al menos 72 horas después de un corte de la red eléctrica.",
+      "flags": [
+        "no_aprobado_tras_max_iteraciones"
+      ]
+    },
+    {
+      "id": "R03",
+      "veredicto": "abierto",
+      "cita": "",
+      "seccion": null,
+      "seccion_modelo": "",
+      "aprobado": false,
+      "iteraciones": 3,
+      "comentario": "La especificación técnica HV-R2-ET no menciona explícitamente el rango de temperatura de funcionamiento del controlador RiegoNet R2. El único apartado que se refiere a la temperatura es 8.3 Garantía y soporte, donde se indica el periodo de garantía pero no el rango de temperatura operativa.",
+      "flags": [
+        "no_aprobado_tras_max_iteraciones"
+      ]
+    },
+    {
+      "id": "R04",
+      "veredicto": "abierto",
+      "cita": "",
+      "seccion": null,
+      "seccion_modelo": "",
+      "aprobado": false,
+      "iteraciones": 3,
+      "comentario": "La especificación no trata este requisito, por lo que no hay evidencia suficiente para determinar si el controlador admite sensores de lluvia de terceros.",
+      "flags": [
+        "no_aprobado_tras_max_iteraciones"
+      ]
+    },
+    {
+      "id": "R05",
+      "veredicto": "abierto",
+      "cita": "",
+      "seccion": null,
+      "seccion_modelo": "",
+      "aprobado": false,
+      "iteraciones": 3,
+      "comentario": "La especificación no trata el requisito de la integración con asistentes de voz o el lanzamiento de riegos mediante órdenes habladas, por lo que falta información crucial para evaluar este requisito.",
+      "flags": [
+        "no_aprobado_tras_max_iteraciones"
+      ]
+    },
+    {
+      "id": "R06",
+      "veredicto": "abierto",
+      "cita": "",
+      "seccion": null,
+      "seccion_modelo": "",
+      "aprobado": false,
+      "iteraciones": 3,
+      "comentario": "La especificación no trata este requisito, por lo que no hay evidencia suficiente para determinar si se cumple o no.",
+      "flags": [
+        "no_aprobado_tras_max_iteraciones"
+      ]
+    },
+    {
+      "id": "R07",
+      "veredicto": "cumple",
+      "cita": "El R2 incorpora Wi-Fi 802.11 b/g/n en la banda de 2,4 GHz.",
+      "seccion": "7.1",
+      "seccion_modelo": "7.1",
+      "aprobado": true,
+      "iteraciones": 1,
+      "comentario": "",
+      "flags": []
+    },
+    {
+      "id": "R08",
+      "veredicto": "cumple",
+      "cita": "Toda la programación puede realizarse desde el teclado frontal sin conexión a internet; los programas se ejecutan localmente aunque se pierda la conexión.",
+      "seccion": "5.2",
+      "seccion_modelo": "5.2",
+      "aprobado": true,
+      "iteraciones": 1,
+      "comentario": "",
+      "flags": []
+    },
+    {
+      "id": "R09",
+      "veredicto": "abierto",
+      "cita": "",
+      "seccion": null,
+      "seccion_modelo": "",
+      "aprobado": false,
+      "iteraciones": 3,
+      "comentario": "La especificación no trata este requisito, lo que implica que falta información crucial para determinar si se cumple o no.",
+      "flags": [
+        "no_aprobado_tras_max_iteraciones"
+      ]
+    },
+    {
+      "id": "R10",
+      "veredicto": "abierto",
+      "cita": "",
+      "seccion": null,
+      "seccion_modelo": "",
+      "aprobado": false,
+      "iteraciones": 3,
+      "comentario": "La especificación no trata este requisito, por lo que no se encuentran frases que mencionen explícitamente una tensión de 230 V CA, una frecuencia de 50 Hz ni la necesidad o ausencia de un transformador externo en el documento proporcionado.",
+      "flags": [
+        "no_aprobado_tras_max_iteraciones"
+      ]
+    }
+  ],
+  "errores": [],
+  "reintentos": 14,
+  "iteraciones_flow": 3,
+  "variante": "A",
+  "wall_s": 590.63
+}

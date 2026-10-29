@@ -1,0 +1,12 @@
+[
+  {"id": "R01", "texto": "El controlador debe gestionar al menos 12 zonas de riego independientes sin necesidad de módulos de expansión."},
+  {"id": "R02", "texto": "Ante un corte de la red eléctrica, el controlador debe seguir ejecutando los riegos programados con su batería durante al menos 72 horas."},
+  {"id": "R03", "texto": "La temperatura de funcionamiento del controlador debe cubrir al menos el rango de −20 °C a +60 °C."},
+  {"id": "R04", "texto": "El controlador debe admitir sensores de lluvia de otros fabricantes."},
+  {"id": "R05", "texto": "El controlador debe poder integrarse con asistentes de voz para lanzar riegos mediante órdenes habladas."},
+  {"id": "R06", "texto": "El fabricante debe garantizar la disponibilidad de piezas de repuesto durante al menos 7 años."},
+  {"id": "R07", "texto": "El controlador debe disponer de conectividad inalámbrica Wi-Fi en la banda de 2,4 GHz."},
+  {"id": "R08", "texto": "El controlador debe poder programarse y ejecutar los riegos sin conexión a internet."},
+  {"id": "R09", "texto": "Con un caudalímetro conectado, el controlador debe registrar el consumo de agua de cada zona y conservar el histórico durante al menos 12 meses."},
+  {"id": "R10", "texto": "El controlador debe poder alimentarse directamente de una red de 230 V CA a 50 Hz, sin transformador externo."}
+]

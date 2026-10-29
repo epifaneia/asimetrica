@@ -1,0 +1,357 @@
+{
+  "meta": {
+    "modelo": "qwen2.5:7b",
+    "modelo_embed": "mxbai-embed-large",
+    "temperatura": 0.0,
+    "seed": 42,
+    "num_ctx": 4096,
+    "top_k": 4,
+    "crewai": "1.15.33",
+    "ollama": "0.32.5",
+    "python": "3.13.12",
+    "hardware": "GPU NVIDIA GeForce RTX 2060, 6144 MiB; Ollama carga 82% de qwen2.5:7b en VRAM (resto en CPU); AMD64 Family 23 Model 113 Stepping 0, AuthenticAMD"
+  },
+  "variantes": {
+    "A": {
+      "runs": 3,
+      "aciertos": {
+        "media": 6,
+        "min": 5,
+        "max": 7,
+        "n": 3
+      },
+      "llamadas_llm": {
+        "media": 96,
+        "min": 96,
+        "max": 96,
+        "n": 3
+      },
+      "llamadas_embed": {
+        "media": 48,
+        "min": 48,
+        "max": 48,
+        "n": 3
+      },
+      "tokens_in": {
+        "media": 80442,
+        "min": 80116,
+        "max": 80680,
+        "n": 3
+      },
+      "tokens_out": {
+        "media": 7860.67,
+        "min": 7619,
+        "max": 8056,
+        "n": 3
+      },
+      "tokens_embed": {
+        "media": 90243,
+        "min": 90223,
+        "max": 90279,
+        "n": 3
+      },
+      "wall_s": {
+        "media": 579.18,
+        "min": 562.35,
+        "max": 590.63,
+        "n": 3
+      },
+      "citas_no_vacias": {
+        "media": 3.67,
+        "min": 3,
+        "max": 4,
+        "n": 3
+      },
+      "citas_literales": {
+        "media": 3.33,
+        "min": 3,
+        "max": 4,
+        "n": 3
+      },
+      "citas_decisivas": {
+        "media": 3.33,
+        "min": 3,
+        "max": 4,
+        "n": 3
+      },
+      "apartado_correcto": {
+        "media": 3.67,
+        "min": 3,
+        "max": 4,
+        "n": 3
+      },
+      "errores": {
+        "media": 0,
+        "min": 0,
+        "max": 0,
+        "n": 3
+      },
+      "reintentos": {
+        "media": 14,
+        "min": 14,
+        "max": 14,
+        "n": 3
+      },
+      "max_prompt_tokens": {
+        "media": 1506,
+        "min": 1498,
+        "max": 1510,
+        "n": 3
+      },
+      "citas_modelo_literales": null,
+      "citas_modelo_no_vacias": null,
+      "degradados": null,
+      "por_requisito": {
+        "R01": [
+          "cumple",
+          "cumple",
+          "cumple"
+        ],
+        "R02": [
+          "abierto",
+          "abierto",
+          "abierto"
+        ],
+        "R03": [
+          "no_cumple",
+          "abierto",
+          "no_cumple"
+        ],
+        "R04": [
+          "no_cumple",
+          "abierto",
+          "abierto"
+        ],
+        "R05": [
+          "abierto",
+          "abierto",
+          "abierto"
+        ],
+        "R06": [
+          "abierto",
+          "abierto",
+          "abierto"
+        ],
+        "R07": [
+          "cumple",
+          "cumple",
+          "cumple"
+        ],
+        "R08": [
+          "cumple",
+          "cumple",
+          "cumple"
+        ],
+        "R09": [
+          "abierto",
+          "abierto",
+          "abierto"
+        ],
+        "R10": [
+          "abierto",
+          "abierto",
+          "abierto"
+        ]
+      },
+      "por_tipo": [
+        {
+          "directo": "3/5",
+          "trampa_cifra": "1/2",
+          "trampa_negacion": "1/1",
+          "abierto": "2/2"
+        },
+        {
+          "directo": "3/5",
+          "trampa_cifra": "0/2",
+          "trampa_negacion": "0/1",
+          "abierto": "2/2"
+        },
+        {
+          "directo": "3/5",
+          "trampa_cifra": "1/2",
+          "trampa_negacion": "0/1",
+          "abierto": "2/2"
+        }
+      ],
+      "errores_detalle": []
+    },
+    "B": {
+      "runs": 3,
+      "aciertos": {
+        "media": 9,
+        "min": 9,
+        "max": 9,
+        "n": 3
+      },
+      "llamadas_llm": {
+        "media": 10,
+        "min": 10,
+        "max": 10,
+        "n": 3
+      },
+      "llamadas_embed": {
+        "media": 0,
+        "min": 0,
+        "max": 0,
+        "n": 3
+      },
+      "tokens_in": {
+        "media": 7071,
+        "min": 7071,
+        "max": 7071,
+        "n": 3
+      },
+      "tokens_out": {
+        "media": 1160,
+        "min": 1160,
+        "max": 1160,
+        "n": 3
+      },
+      "tokens_embed": {
+        "media": 0,
+        "min": 0,
+        "max": 0,
+        "n": 3
+      },
+      "wall_s": {
+        "media": 80.2,
+        "min": 77.77,
+        "max": 84.24,
+        "n": 3
+      },
+      "citas_no_vacias": {
+        "media": 8,
+        "min": 8,
+        "max": 8,
+        "n": 3
+      },
+      "citas_literales": {
+        "media": 8,
+        "min": 8,
+        "max": 8,
+        "n": 3
+      },
+      "citas_decisivas": {
+        "media": 8,
+        "min": 8,
+        "max": 8,
+        "n": 3
+      },
+      "apartado_correcto": {
+        "media": 8,
+        "min": 8,
+        "max": 8,
+        "n": 3
+      },
+      "errores": {
+        "media": 0,
+        "min": 0,
+        "max": 0,
+        "n": 3
+      },
+      "reintentos": {
+        "media": 0,
+        "min": 0,
+        "max": 0,
+        "n": 3
+      },
+      "max_prompt_tokens": {
+        "media": 748,
+        "min": 748,
+        "max": 748,
+        "n": 3
+      },
+      "citas_modelo_literales": {
+        "media": 8,
+        "min": 8,
+        "max": 8,
+        "n": 3
+      },
+      "citas_modelo_no_vacias": {
+        "media": 8,
+        "min": 8,
+        "max": 8,
+        "n": 3
+      },
+      "degradados": {
+        "media": 0,
+        "min": 0,
+        "max": 0,
+        "n": 3
+      },
+      "por_requisito": {
+        "R01": [
+          "cumple",
+          "cumple",
+          "cumple"
+        ],
+        "R02": [
+          "no_cumple",
+          "no_cumple",
+          "no_cumple"
+        ],
+        "R03": [
+          "no_cumple",
+          "no_cumple",
+          "no_cumple"
+        ],
+        "R04": [
+          "no_cumple",
+          "no_cumple",
+          "no_cumple"
+        ],
+        "R05": [
+          "abierto",
+          "abierto",
+          "abierto"
+        ],
+        "R06": [
+          "abierto",
+          "abierto",
+          "abierto"
+        ],
+        "R07": [
+          "cumple",
+          "cumple",
+          "cumple"
+        ],
+        "R08": [
+          "cumple",
+          "cumple",
+          "cumple"
+        ],
+        "R09": [
+          "cumple",
+          "cumple",
+          "cumple"
+        ],
+        "R10": [
+          "no_cumple",
+          "no_cumple",
+          "no_cumple"
+        ]
+      },
+      "por_tipo": [
+        {
+          "directo": "4/5",
+          "trampa_cifra": "2/2",
+          "trampa_negacion": "1/1",
+          "abierto": "2/2"
+        },
+        {
+          "directo": "4/5",
+          "trampa_cifra": "2/2",
+          "trampa_negacion": "1/1",
+          "abierto": "2/2"
+        },
+        {
+          "directo": "4/5",
+          "trampa_cifra": "2/2",
+          "trampa_negacion": "1/1",
+          "abierto": "2/2"
+        }
+      ],
+      "errores_detalle": []
+    }
+  }
+}

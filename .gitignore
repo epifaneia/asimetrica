@@ -43,5 +43,7 @@ app-example
 /ios
 /android
 
-# musica con derechos (solo build personal; en clon nuevo: anadir archivo o poner AMBIENT_LOOP_SOURCE=null)
-assets/sounds/ambient_loop.mp3
+# experimento CrewAI
+__pycache__/
+venv/
+experimentos/*/crewai-vs-llamadas-*/

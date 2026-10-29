@@ -1,0 +1,180 @@
+{
+  "resultados": [
+    {
+      "id": "R01",
+      "veredicto": "cumple",
+      "cita": "El R2 gestiona 16 zonas de riego independientes en su configuración estándar, sin módulos adicionales.",
+      "seccion": "2.2",
+      "veredicto_modelo": "cumple",
+      "cita_modelo": "El R2 gestiona 16 zonas de riego independientes en su configuración estándar, sin módulos adicionales.",
+      "chunk_id": "c04",
+      "recuperados": [
+        "c04=2.2",
+        "c01=1.1",
+        "c23=8.3",
+        "c09=4.1"
+      ],
+      "comparacion": "El requisito exige que el controlador gestione al menos 12 zonas de riego independientes sin necesidad de módulos de expansión. La especificación indica que el R2 gestiona 16 zonas de riego independientes.",
+      "flags": []
+    },
+    {
+      "id": "R02",
+      "veredicto": "no_cumple",
+      "cita": "Ante un corte de red, la batería de respaldo permite seguir ejecutando los riegos programados durante un máximo de 48 horas;",
+      "seccion": "3.3",
+      "veredicto_modelo": "no_cumple",
+      "cita_modelo": "ante un corte de red, la batería de respaldo permite seguir ejecutando los riegos programados durante un máximo de 48 horas;",
+      "chunk_id": "c08",
+      "recuperados": [
+        "c08=3.3",
+        "c23=8.3",
+        "c01=1.1",
+        "c09=4.1"
+      ],
+      "comparacion": "El requisito exige que el controlador siga ejecutando los riegos programados durante al menos 72 horas con su batería en caso de corte de red eléctrica, mientras que la especificación indica un máximo de 48 horas.",
+      "flags": []
+    },
+    {
+      "id": "R03",
+      "veredicto": "no_cumple",
+      "cita": "Temperatura de funcionamiento: de −10 °C a +60 °C.",
+      "seccion": "4.1",
+      "veredicto_modelo": "no_cumple",
+      "cita_modelo": "Temperatura de funcionamiento: de −10 °C a +60 °C.",
+      "chunk_id": "c09",
+      "recuperados": [
+        "c09=4.1",
+        "c11=4.3",
+        "c23=8.3",
+        "c01=1.1"
+      ],
+      "comparacion": "El requisito exige un rango de temperatura de funcionamiento de -20 °C a +60 °C, mientras que la especificación indica un rango de -10 °C a +60 °C.",
+      "flags": []
+    },
+    {
+      "id": "R04",
+      "veredicto": "no_cumple",
+      "cita": "El R2 no admite sensores de lluvia de otros fabricantes: la entrada SEN1 solo reconoce el sensor HV-Pluvio, que se identifica mediante un protocolo propio.",
+      "seccion": "6.1",
+      "veredicto_modelo": "no_cumple",
+      "cita_modelo": "El R2 no admite sensores de lluvia de otros fabricantes: la entrada SEN1 solo reconoce el sensor HV-Pluvio, que se identifica mediante un protocolo propio.",
+      "chunk_id": "c15",
+      "recuperados": [
+        "c15=6.1",
+        "c16=6.2",
+        "c19=7.2",
+        "c02=1.2"
+      ],
+      "comparacion": "El requisito exige que el controlador admita sensores de lluvia de otros fabricantes, pero la especificación indica lo contrario.",
+      "flags": []
+    },
+    {
+      "id": "R05",
+      "veredicto": "abierto",
+      "cita": "",
+      "seccion": null,
+      "veredicto_modelo": "abierto",
+      "cita_modelo": "",
+      "chunk_id": "ninguno",
+      "recuperados": [
+        "c19=7.2",
+        "c03=2.1",
+        "c14=5.3",
+        "c01=1.1"
+      ],
+      "comparacion": "El requisito exige que el controlador pueda integrarse con asistentes de voz para lanzar riegos mediante órdenes habladas. La especificación no menciona nada sobre la integración con asistentes de voz.",
+      "flags": []
+    },
+    {
+      "id": "R06",
+      "veredicto": "abierto",
+      "cita": "",
+      "seccion": null,
+      "veredicto_modelo": "abierto",
+      "cita_modelo": "",
+      "chunk_id": "c01",
+      "recuperados": [
+        "c23=8.3",
+        "c11=4.3",
+        "c01=1.1",
+        "c09=4.1"
+      ],
+      "comparacion": "El requisito exige una garantía de piezas de repuesto durante al menos 7 años, mientras que la especificación no menciona nada sobre la disponibilidad de piezas de repuesto.",
+      "flags": [
+        "quote_failed:quote vacía/corta en c01"
+      ]
+    },
+    {
+      "id": "R07",
+      "veredicto": "cumple",
+      "cita": "El R2 incorpora Wi-Fi 802.11 b/g/n en la banda de 2,4 GHz.",
+      "seccion": "7.1",
+      "veredicto_modelo": "cumple",
+      "cita_modelo": "El R2 incorpora Wi-Fi 802.11 b/g/n en la banda de 2,4 GHz.",
+      "chunk_id": "c18",
+      "recuperados": [
+        "c18=7.1",
+        "c03=2.1",
+        "c22=8.2",
+        "c06=3.1"
+      ],
+      "comparacion": "El requisito exige que el controlador disponga de conectividad inalámbrica Wi-Fi en la banda de 2,4 GHz. La especificación indica que el R2 incorpora Wi-Fi 802.11 b/g/n en la banda de 2,4 GHz.",
+      "flags": []
+    },
+    {
+      "id": "R08",
+      "veredicto": "cumple",
+      "cita": "Toda la programación puede realizarse desde el teclado frontal sin conexión a internet; los programas se ejecutan localmente aunque se pierda la conexión.",
+      "seccion": "5.2",
+      "veredicto_modelo": "cumple",
+      "cita_modelo": "Toda la programación puede realizarse desde el teclado frontal sin conexión a internet; los programas se ejecutan localmente aunque se pierda la conexión.",
+      "chunk_id": "c13",
+      "recuperados": [
+        "c13=5.2",
+        "c04=2.2",
+        "c09=4.1",
+        "c01=1.1"
+      ],
+      "comparacion": "El requisito exige que el controlador pueda programarse y ejecutar los riegos sin conexión a internet. La especificación afirma que la programación se puede realizar desde el teclado frontal sin conexión a internet.",
+      "flags": []
+    },
+    {
+      "id": "R09",
+      "veredicto": "cumple",
+      "cita": "Con un caudalímetro conectado a SEN2, el R2 registra el consumo de agua de cada zona en litros y conserva el histórico de los últimos 24 meses en memoria interna.",
+      "seccion": "8.1",
+      "veredicto_modelo": "cumple",
+      "cita_modelo": "con un caudalímetro conectado a SEN2, el R2 registra el consumo de agua de cada zona en litros y conserva el histórico de los últimos 24 meses en memoria interna.",
+      "chunk_id": "c21",
+      "recuperados": [
+        "c21=8.1",
+        "c17=6.3",
+        "c01=1.1",
+        "c23=8.3"
+      ],
+      "comparacion": "El requisito exige que el controlador registre el consumo de agua de cada zona durante al menos 12 meses, mientras que la especificación indica que conserva el histórico de los últimos 24 meses.",
+      "flags": []
+    },
+    {
+      "id": "R10",
+      "veredicto": "no_cumple",
+      "cita": "Alimentación de entrada: 100–240 V CA, 50/60 Hz, mediante fuente interna; no requiere transformador externo.",
+      "seccion": "3.1",
+      "veredicto_modelo": "no_cumple",
+      "cita_modelo": "Alimentación de entrada: 100–240 V CA, 50/60 Hz, mediante fuente interna; no requiere transformador externo.",
+      "chunk_id": "c06",
+      "recuperados": [
+        "c06=3.1",
+        "c04=2.2",
+        "c07=3.2",
+        "c01=1.1"
+      ],
+      "comparacion": "El requisito exige que la alimentación sea directamente de una red de 230 V CA a 50 Hz sin transformador externo, mientras que la especificación indica que la alimentación es de 100-240 V CA, 50/60 Hz mediante fuente interna.",
+      "flags": []
+    }
+  ],
+  "errores": [],
+  "reintentos": 0,
+  "variante": "B",
+  "wall_s": 77.77
+}
