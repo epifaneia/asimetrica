@@ -84,7 +84,7 @@ Antes de quedarme con llamadas directas medí la alternativa. Las dos variantes 
 Las tres ejecuciones de cada variante dieron los mismos veredictos.
 
 **Dónde falló cada una:**
-- **Los cuatro fallos de CrewAI fueron «abierto», nunca un «cumple» o «no cumple» equivocado.** Para quien revisa, es el fallo más seguro. También acertó la trampa más sutil (temperatura de almacenamiento frente a la de funcionamiento). La mayoría de sus 96 llamadas salen del bucle de reintentos: el orquestador entendió `aprobado` como «el requisito se cumple», así que reintentó hasta el máximo cada requisito que no cumplía, y los reintentos no cambiaron ni una respuesta.
+- **Los cuatro fallos de CrewAI fueron «abierto», nunca un «cumple» o «no cumple» equivocado.** Para quien revisa, es el fallo más seguro. También acertó la trampa más sutil (temperatura de almacenamiento frente a la de funcionamiento). La mayoría de sus 96 llamadas salen del bucle de reintentos: el orquestador entendió `aprobado` como «el requisito se cumple», así que reintentó hasta el máximo cada requisito que no cumplía, y los reintentos no cambiaron el resultado: la única respuesta que movieron fue R09, de un «no cumple» equivocado a un «abierto».
 - **La versión de llamadas propias cometió un error con aplomo.** La especificación dice 100–240 V y contestó «no cumple» para 230 V, con una cita correcta y verificada. Comprobar la cita demuestra que la evidencia existe, no que el razonamiento sobre ella sea correcto.
 
 **Por qué no es la última palabra:**
@@ -103,7 +103,7 @@ La app no está en Google Play; se instala con un fichero APK. Hace falta Androi
 3. **Permite la instalación.** La primera vez, Android dice que el navegador no puede instalar aplicaciones. Toca *Ajustes*, activa *Permitir desde esta fuente*, vuelve atrás y toca *Instalar*.
 4. **Si Play Protect pregunta**, toca *Más detalles → Instalar de todas formas*. Pregunta porque la app no viene de Play Store, no porque haya encontrado nada.
 5. **Consigue una clave de Gemini.** Abre [Google AI Studio](https://aistudio.google.com/apikey), entra con una cuenta de Google y toca *Create API key*. Mira allí los límites de tu plan: la etapa de análisis usa un modelo Pro.
-6. **Pega la clave.** Abre Asimétrica, entra en *Ajustes* y pégala en el campo de la clave de Google. Se queda en el móvil.
+6. **Pega la clave.** Abre la app (en la versión 1.0.0 su icono aún lleva el nombre de trabajo, *guardaespaldas-app*), entra en *Ajustes* y pégala en el campo de la clave de Google. Se queda en el móvil.
 7. **Habla.** Permite el micrófono la primera vez y toca uno de los cuatro perfiles de la pantalla de inicio. Con unos auriculares de cable con botón tienes *Cambio* y *Corto* sin tocar el móvil.
 
 Para actualizar, instala el APK nuevo encima del anterior: se conservan las carpetas y los ajustes. Para quitarla, desinstálala como cualquier otra app; eso borra también todo lo que guardó.
@@ -122,7 +122,8 @@ Los cuatro avisos se generan con `python scripts/generar_avisos.py`. Créditos d
 ## Privacidad y límites
 
 - **El audio, el texto y los documentos de la biblioteca van a Google** (API de Gemini): el audio en cada turno, el texto de la biblioteca al indexarlo y los pasajes que se usan en cada análisis. Carpetas, conversaciones, biblioteca y ajustes viven en el móvil.
-- **La clave se guarda en AsyncStorage tal cual**, no en el Keystore de Android.
+- **La clave y los tokens del inicio de sesión de Google se guardan cifrados** en el Keystore de Android mediante `expo-secure-store`; el resto del estado va en AsyncStorage. Las instalaciones antiguas que la tenían en AsyncStorage tal cual la mueven en la primera lectura.
+- **Exportar a Google Docs inicia sesión con tu cuenta de Google** (OAuth) y escribe el documento en tu Drive; solo se usa cuando lo pides.
 - **Nunca compiles un APK para compartir con una clave en `.env`.** Expo incrusta las variables `EXPO_PUBLIC_*` en el bundle de JavaScript, así que cualquiera con el APK puede leerlas.
 - **Deep Research cuesta dinero de verdad** (unos 1–3 $ por investigación). Nunca es la opción por defecto y se lee en voz alta antes de empezar.
 - **El camino del audio no se puede probar desde una mesa.** Cada cambio de sonido se comprueba paseando.

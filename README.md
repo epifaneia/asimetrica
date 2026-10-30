@@ -84,7 +84,7 @@ Before settling on direct calls I measured the alternative. The same task, the s
 The three runs of each variant gave the same verdicts.
 
 **Where each failed:**
-- **CrewAI's four misses were all "open", never a wrong "complies" or "does not comply".** For a reviewer that is the safer failure. It also caught the subtlest trap (storage vs operating temperature). Most of its 96 calls came from the retry loop: the orchestrator read `approved` as "the requirement passes", so every non-compliant requirement was retried to the limit, and the retries did not change a single answer.
+- **CrewAI's four misses were all "open", never a wrong "complies" or "does not comply".** For a reviewer that is the safer failure. It also caught the subtlest trap (storage vs operating temperature). Most of its 96 calls came from the retry loop: the orchestrator read `approved` as "the requirement passes", so every non-compliant requirement was retried to the limit, and the retries did not change the score: the only answer they moved was R09, from a wrong "does not comply" to an "open".
 - **The own-calls version made one confident mistake.** The spec says 100–240 V and it answered "does not comply" for 230 V, with a correct, verified quote. Checking the quote proves the evidence exists, not that the reasoning about it is right.
 
 **Why it is not the last word:**
@@ -103,7 +103,7 @@ The app is not on Google Play; it is installed from an APK file. You need Androi
 3. **Allow the install.** The first time, Android says the browser is not allowed to install apps. Tap *Settings*, turn on *Allow from this source*, go back and tap *Install*.
 4. **If Play Protect asks**, tap *More details → Install anyway*. It asks because the app does not come from the Play Store, not because it found anything.
 5. **Get a Gemini key.** Open [Google AI Studio](https://aistudio.google.com/apikey), sign in with a Google account and tap *Create API key*. Check your plan's limits there: the analysis stage uses a Pro model.
-6. **Paste the key.** Open Asimétrica, go to *Ajustes* and paste it in the Google key field. It stays on the phone.
+6. **Paste the key.** Open the app (in version 1.0.0 its icon still carries the working name, *guardaespaldas-app*), go to *Ajustes* and paste it in the Google key field. It stays on the phone.
 7. **Talk.** Allow the microphone the first time, then tap one of the four profiles on the home screen. A wired headset with a button gives you *Cambio* and *Corto* without touching the phone.
 
 To update, install the new APK over the old one: your folders and settings are kept. To remove it, uninstall it like any other app; that also deletes everything it stored.
@@ -122,7 +122,8 @@ The four cue sounds are generated with `python scripts/generar_avisos.py`. Audio
 ## Privacy and limits
 
 - **Audio, text and library documents go to Google** (Gemini API): the audio on every turn, library text when it is indexed and the passages used in each analysis. Folders, conversations, the library and settings live on the phone.
-- **The key is stored in plain AsyncStorage**, not in the Android Keystore.
+- **The key and the Google sign-in tokens are stored encrypted** in the Android Keystore through `expo-secure-store`; the rest of the state is in AsyncStorage. Older installs that kept the key in plain AsyncStorage move it on first read.
+- **Exporting to Google Docs signs in with your Google account** (OAuth) and writes the document to your Drive; it is only used when you ask for it.
 - **Never build an APK to share with a key in `.env`.** Expo inlines `EXPO_PUBLIC_*` variables into the JavaScript bundle, so anyone with the APK can read them.
 - **Deep Research costs real money** (about $1–3 per run). It is never the default and is read back before it starts.
 - **The audio path cannot be tested from a desk.** Every change to sound is checked on a walk.
